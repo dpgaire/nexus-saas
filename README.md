@@ -1,4 +1,4 @@
-# AI Portfolio Admin Dashboard
+# Nexus App
 
 A modern, responsive React admin dashboard for managing the content of a personal portfolio. This dashboard also includes a chat interface for interacting with a custom-trained AI chatbot.
 
