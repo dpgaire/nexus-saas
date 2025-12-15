@@ -2,7 +2,9 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { setCredentials, logOut } from "../slices/authSlice";
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: "https://ai-chatbot-api-ten.vercel.app/api",
+  // baseUrl: "https://ai-chatbot-api-ten.vercel.app/api",
+  baseUrl: "http://localhost:3000/api",
+
   prepareHeaders: (headers, { getState }) => {
     const token = getState().auth.token;
     if (token) {
@@ -557,10 +559,6 @@ export const apiSlice = createApi({
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: (result, error, { id }) => [
-        { type: "Task", id },
-        { type: "Task", id: "LIST" },
-      ],
     }),
     deleteTask: builder.mutation({
       query: (id) => ({

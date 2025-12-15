@@ -7,7 +7,10 @@ import {
   useCreateTaskMutation,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
+  apiSlice,
 } from "../app/services/api";
+// import { api } from "../app/services/api";
+import { useDispatch } from "react-redux";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +47,7 @@ import TaskCard from "@/components/TaskCard";
 import { Search } from "lucide-react";
 
 const Tasks = () => {
+  const dispatch = useDispatch();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -117,28 +121,49 @@ const Tasks = () => {
     setIsEditModalOpen(true);
   };
   
-  const onDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
-    if (!destination) return;
+const onDragEnd = async (result) => {
+  const { destination, source, draggableId } = result;
 
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) {
-      return;
-    }
+  if (!destination) return;
+  if (
+    destination.droppableId === source.droppableId &&
+    destination.index === source.index
+  ) {
+    return;
+  }
 
-    const task = tasksData.find((t) => String(t.id) === String(draggableId));
-    if (!task) return;
+  const taskId = Number(draggableId);
+  const newStatus = destination.droppableId;
 
-    const updatedTask = { ...task, status: destination.droppableId };
-    
-    try {
-        await updateTask({ id: task.id, ...updatedTask }).unwrap();
-    } catch (error) {
-        toast.error(error.data?.message || "Failed to update task status");
-    }
+  // Find the current task from cached data
+  const currentTask = tasksData.find((t) => t.id === taskId);
+  if (!currentTask) return;
+
+  // Create full updated task object with only status changed
+  const updatedTask = {
+    ...currentTask,
+    status: newStatus,
   };
+
+  // Optimistic UI update
+  const patchResult = dispatch(
+    apiSlice.util.updateQueryData("getTasks", undefined, (draft) => {
+      const task = draft.find((t) => t.id === taskId);
+      if (task) {
+        task.status = newStatus;
+      }
+    })
+  );
+
+  try {
+    // Send the FULL task object (required for PUT)
+    await updateTask({ id: taskId, ...updatedTask }).unwrap();
+    toast.success("Task moved successfully");
+  } catch (error) {
+    patchResult.undo(); // Revert UI on failure
+    toast.error(error.data?.message || "Failed to move task");
+  }
+};
 
 const columns = (tasksData || []).reduce(
   (acc, task) => {
@@ -229,7 +254,7 @@ Object.keys(columns).forEach((key) => {
                     </Select>
                   )}
                 />
-                <Input {...register("dueDate")} type="date" />
+                <Input {...register("dueDate")} type="datetime-local" />
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
@@ -252,7 +277,7 @@ Object.keys(columns).forEach((key) => {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search users..."
+              placeholder="Search tasks..."
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
