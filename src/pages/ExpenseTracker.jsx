@@ -1,6 +1,10 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { expenseAPI } from "@/services/api";
+import {
+  useGetExpensesQuery,
+  useCreateExpenseMutation,
+  useUpdateExpenseMutation,
+  useDeleteExpenseMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +45,6 @@ import {
 } from "@/components/ui/table";
 
 const ExpenseTracker = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
@@ -62,51 +65,12 @@ const ExpenseTracker = () => {
     }));
   };
 
-  const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ["expenses"],
-    queryFn: async () => {
-      const response = await expenseAPI.getAll();
-      return response.data;
-    },
-    onError: () => toast.error("Failed to load expenses"),
-  });
+  const { data: expenses = [], isLoading } = useGetExpensesQuery();
+  const [createExpense, { isLoading: isCreating }] = useCreateExpenseMutation();
+  const [updateExpense, { isLoading: isUpdating }] = useUpdateExpenseMutation();
+  const [deleteExpense, { isLoading: isDeleting }] = useDeleteExpenseMutation();
 
-  const createExpense = useMutation({
-    mutationFn: expenseAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["expenses"]);
-      toast.success("Expense added successfully");
-      setIsFormOpen(false);
-      setEditingExpense(null);
-      setSelectedType("expense");
-      setFormData({});
-    },
-    onError: () => toast.error("Failed to add expense"),
-  });
-
-  const updateExpense = useMutation({
-    mutationFn: ({ id, data }) => expenseAPI.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["expenses"]);
-      toast.success("Expense updated successfully");
-      setIsFormOpen(false);
-      setEditingExpense(null);
-      setSelectedType("expense");
-      // set FormData({});
-    },
-    onError: () => toast.error("Failed to update expense"),
-  });
-
-  const deleteExpense = useMutation({
-    mutationFn: expenseAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["expenses"]);
-      toast.success("Expense deleted successfully");
-    },
-    onError: () => toast.error("Failed to delete expense"),
-  });
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const data = { ...formData };
     data.amount = parseFloat(data.amount);
@@ -115,10 +79,20 @@ const ExpenseTracker = () => {
       delete data.loanType;
     }
 
-    if (editingExpense) {
-      updateExpense.mutate({ id: editingExpense.id, data });
-    } else {
-      createExpense.mutate(data);
+    try {
+      if (editingExpense) {
+        await updateExpense({ id: editingExpense.id, ...data }).unwrap();
+        toast.success("Expense updated successfully");
+      } else {
+        await createExpense(data).unwrap();
+        toast.success("Expense added successfully");
+      }
+      setIsFormOpen(false);
+      setEditingExpense(null);
+      setSelectedType("expense");
+      setFormData({});
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to save expense");
     }
   };
 
@@ -138,15 +112,20 @@ const ExpenseTracker = () => {
     setFormData((prev) => ({ ...prev, loanType: value || "" }));
   };
 
-  const confirmDeleteExpense = () => {
+  const confirmDeleteExpense = async () => {
     if (deleteExpenseId) {
-      deleteExpense.mutate(deleteExpenseId, {
-        onSettled: () => setDeleteExpenseId(null),
-      });
+      try {
+        await deleteExpense(deleteExpenseId).unwrap();
+        toast.success("Expense deleted successfully");
+        setDeleteExpenseId(null);
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to delete expense");
+        setDeleteExpenseId(null);
+      }
     }
   };
 
-  const filteredExpenses = expenses
+  const filteredExpenses = (expenses || [])
     .filter(
       (expense) =>
         expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,6 +133,7 @@ const ExpenseTracker = () => {
         (expense.loanType &&
           expense.loanType.toLowerCase().includes(searchTerm.toLowerCase()))
     )
+    .slice()
     .reverse();
 
   const totalIncome = filteredExpenses
@@ -181,9 +161,9 @@ const ExpenseTracker = () => {
   }, [editingExpense]);
 
   // Masked amount component
-  const MaskedAmount = ({ amount, show, prefix = "", suffix = "" }) => {
+  const MaskedAmount = ({ amount, show, prefix = "" }) => {
     const masked = "XXXX";
-    const formatted = `${prefix}Rs ${amount.toFixed(2)}${suffix}`;
+    const formatted = `${prefix}Rs ${amount.toFixed(2)}`;
     return (
       <span className="font-mono text-lg">
         {show ? formatted : masked}
@@ -206,7 +186,7 @@ const ExpenseTracker = () => {
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingExpense(null)}>
+            <Button onClick={() => { setEditingExpense(null); setFormData({}); setIsFormOpen(true);}}>
               <Plus className="mr-2" /> Add Transaction
             </Button>
           </DialogTrigger>
@@ -299,8 +279,8 @@ const ExpenseTracker = () => {
                   required
                 />
               </div>
-              <Button type="submit" disabled={createExpense.isPending || updateExpense.isPending}>
-                {editingExpense ? "Update" : "Add"} Transaction
+              <Button type="submit" disabled={isCreating || isUpdating}>
+                {isCreating || isUpdating ? (editingExpense ? "Updating..." : "Adding...") : (editingExpense ? "Update" : "Add")} Transaction
               </Button>
             </form>
           </DialogContent>
@@ -450,6 +430,7 @@ const ExpenseTracker = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteExpenseId(expense.id)}
+                            disabled={isDeleting}
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
@@ -474,8 +455,8 @@ const ExpenseTracker = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteExpense} className="bg-red-600 hover:bg-red-700">
-              Delete
+            <AlertDialogAction onClick={confirmDeleteExpense} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

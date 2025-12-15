@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { selectCurrentUser } from "@/app/slices/authSlice";
 
 import {
   ChevronDown,
@@ -25,11 +27,10 @@ import {
   QrCode,
   DollarSign,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { rolePermissions } from "@/config/permissions";
 
 const SidebarNav = ({ setSidebarOpen, isCurrentPath }) => {
-  const { user } = useAuth();
+  const user = useSelector(selectCurrentUser);
 
   const menuGroups = [
     {

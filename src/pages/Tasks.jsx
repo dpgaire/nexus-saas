@@ -2,7 +2,12 @@ import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetTasksQuery,
+  useCreateTaskMutation,
+  useUpdateTaskMutation,
+  useDeleteTaskMutation,
+} from "../app/services/api";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,13 +39,11 @@ import {
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { tasksAPI } from "../services/api";
 import { taskSchema } from "../utils/validationSchemas";
 import TaskCard from "@/components/TaskCard";
 import { Search } from "lucide-react";
 
 const Tasks = () => {
-  const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -51,17 +54,10 @@ const Tasks = () => {
     resolver: yupResolver(taskSchema),
   });
 
-  const { data: tasksData = [], isLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: async () => {
-      const response = await tasksAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching tasks:", error);
-      toast.error("Failed to load tasks");
-    },
-  });
+  const { data: tasksData = [], isLoading } = useGetTasksQuery();
+  const [createTask, { isLoading: isCreating }] = useCreateTaskMutation();
+  const [updateTask, { isLoading: isUpdating }] = useUpdateTaskMutation();
+  const [deleteTask, { isLoading: isDeleting }] = useDeleteTaskMutation();
 
   useEffect(() => {
     if (editingTask) {
@@ -78,73 +74,42 @@ const Tasks = () => {
     }
   }, [editingTask, setValue]);
 
-  const createTaskMutation = useMutation({
-    mutationFn: tasksAPI.create,
-    onSuccess: () => {
+  const handleCreateTask = async (data) => {
+    try {
+      await createTask(data).unwrap();
       toast.success("Task created successfully!");
       setIsCreateModalOpen(false);
       reset();
-      queryClient.invalidateQueries(["tasks"]);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to create task");
-    },
-  });
-
-  const updateTaskMutation = useMutation({
-    mutationFn: ({ id, data }) => tasksAPI.update(id, data),
-    onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries(["tasks"]);
-      const previousTasks = queryClient.getQueryData(["tasks"]);
-      queryClient.setQueryData(["tasks"], (old) =>
-        old.map((task) => (task.id === id ? { ...task, ...data } : task))
-      );
-      return { previousTasks };
-    },
-    onError: (err, variables, context) => {
-      queryClient.setQueryData(["tasks"], context?.previousTasks);
-      toast.error(err.response?.data?.message || "Failed to update task");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(["tasks"]);
-    },
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: tasksAPI.delete,
-    onSuccess: () => {
-      toast.success("Task deleted successfully!");
-      queryClient.invalidateQueries(["tasks"]);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to delete task");
-    },
-  });
-
-  const handleCreateTask = (data) => {
-    createTaskMutation.mutate(data);
-    setEditingTask(null);
+    } catch (error) {
+       toast.error(error.data?.message || "Failed to create task");
+    }
   };
 
-  const handleEditTask = (data) => {
-    updateTaskMutation.mutate({ id: editingTask.id, data });
-    setIsEditModalOpen(false);
+  const handleEditTask = async (data) => {
+     try {
+      await updateTask({ id: editingTask.id, ...data }).unwrap();
+      toast.success("Task updated successfully!");
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+    } catch (error) {
+       toast.error(error.data?.message || "Failed to update task");
+    }
   };
 
   const handleDeleteTask = (id) => {
-    setDeleteTaskId(id); // open confirmation modal
+    setDeleteTaskId(id);
   };
 
-  const confirmDeleteTask = () => {
+  const confirmDeleteTask = async () => {
     if (!deleteTaskId) return;
-    deleteTaskMutation.mutate(deleteTaskId, {
-      onSuccess: () => {
+    try {
+        await deleteTask(deleteTaskId).unwrap();
+        toast.success("Task deleted successfully!");
         setDeleteTaskId(null);
-      },
-      onSettled: () => {
+    } catch (error) {
+        toast.error(error.data?.message || "Failed to delete task");
         setDeleteTaskId(null);
-      },
-    });
+    }
   };
 
   const openEditModal = (task) => {
@@ -152,7 +117,7 @@ const Tasks = () => {
     setIsEditModalOpen(true);
   };
   
-  const onDragEnd = (result) => {
+  const onDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
 
@@ -163,16 +128,19 @@ const Tasks = () => {
       return;
     }
 
-    // find original task by id (preserve original id type)
     const task = tasksData.find((t) => String(t.id) === String(draggableId));
     if (!task) return;
 
     const updatedTask = { ...task, status: destination.droppableId };
-    // use real task.id (not draggableId string) for API
-    updateTaskMutation.mutate({ id: task.id, data: updatedTask });
+    
+    try {
+        await updateTask({ id: task.id, ...updatedTask }).unwrap();
+    } catch (error) {
+        toast.error(error.data?.message || "Failed to update task status");
+    }
   };
 
-const columns = tasksData.reduce(
+const columns = (tasksData || []).reduce(
   (acc, task) => {
     if (task.title.toLowerCase().includes(searchTerm.toLowerCase())) {
       if (!acc[task.status]) acc[task.status] = [];
@@ -185,7 +153,7 @@ const columns = tasksData.reduce(
 
 // Reverse each column so the latest tasks are shown first
 Object.keys(columns).forEach((key) => {
-  columns[key] = columns[key].reverse();
+  columns[key] = columns[key].slice().reverse();
 });
 
   if (isLoading) return <LoadingSpinner />;
@@ -270,8 +238,8 @@ Object.keys(columns).forEach((key) => {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createTaskMutation.isPending}>
-                    {createTaskMutation.isPending ? "Creating..." : "Create"}
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? "Creating..." : "Create"}
                   </Button>
                 </div>
               </form>
@@ -311,8 +279,9 @@ Object.keys(columns).forEach((key) => {
             <AlertDialogAction
               onClick={confirmDeleteTask}
               className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -401,7 +370,7 @@ Object.keys(columns).forEach((key) => {
               render={({ field }) => (
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Status" />
@@ -420,7 +389,7 @@ Object.keys(columns).forEach((key) => {
               render={({ field }) => (
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Priority" />
@@ -442,7 +411,7 @@ Object.keys(columns).forEach((key) => {
               >
                 Cancel
               </Button>
-              <Button type="submit">Update</Button>
+              <Button type="submit" disabled={isUpdating}>{isUpdating ? "Updating..." : "Update"}</Button>
             </div>
           </form>
         </DialogContent>

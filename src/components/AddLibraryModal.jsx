@@ -1,4 +1,9 @@
 import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { useCreateLibraryMutation } from "@/app/services/api";
+import { librarySchema } from "@/utils/validationSchemas";
+import toast from "react-hot-toast";
 import {
   Dialog,
   DialogContent,
@@ -9,15 +14,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const AddLibraryModal = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  register,
-  handleSubmit,
-  errors,
-  isLoading,
-}) => {
+const AddLibraryModal = ({ isOpen, onClose }) => {
+  const [createLibrary, { isLoading }] = useCreateLibraryMutation();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: yupResolver(librarySchema),
+  });
+
+  const onSubmit = async (data) => {
+    try {
+      await createLibrary(data).unwrap();
+      toast.success("Library item created successfully!");
+      reset();
+      onClose();
+    } catch (error) {
+      const message =
+        error.data?.message || "Failed to create library item";
+      toast.error(message);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>

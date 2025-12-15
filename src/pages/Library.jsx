@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetLibrariesQuery,
+  useUpdateLibraryMutation,
+  useDeleteLibraryMutation,
+} from "../app/services/api";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,32 +24,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { libraryAPI } from "../services/api";
 import { librarySchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import LibraryCard from "@/components/LibraryCard";
-import LibraryDetailModal from "@/components/LibraryDetailModal";
 import AddLibraryModal from "@/components/AddLibraryModal";
 
 const Library = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState(null);
 
-  const { data: libraryData = [], isLoading: isLoadingLibrary } = useQuery({
-    queryKey: ["library"],
-    queryFn: async () => {
-      const response = await libraryAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching library:", error);
-      toast.error("Failed to load library");
-    },
-  });
+  const { data: libraryData = [], isLoading: isLoadingLibrary } = useGetLibrariesQuery();
+  const [updateLibrary, { isLoading: isUpdating }] = useUpdateLibraryMutation();
+  const [deleteLibrary, { isLoading: isDeleting }] = useDeleteLibraryMutation();
+  
   const {
     register,
     handleSubmit,
@@ -55,63 +49,32 @@ const Library = () => {
     resolver: yupResolver(librarySchema),
   });
 
-  const createMutation = useMutation({
-    mutationFn: libraryAPI.create,
-    onSuccess: () => {
-      toast.success("Library item created successfully!");
-      setIsCreateModalOpen(false);
-      reset();
-      queryClient.invalidateQueries(["library"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to create library item";
-      toast.error(message);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => libraryAPI.update(id, data),
-    onSuccess: () => {
+  const handleEditLibrary = async (data) => {
+    try {
+      await updateLibrary({ id: editingLibrary.id, ...data }).unwrap();
       toast.success("Library item updated successfully!");
       setIsEditModalOpen(false);
       setEditingLibrary(null);
       reset();
-      queryClient.invalidateQueries(["library"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to update library item";
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to update library item";
       toast.error(message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: libraryAPI.delete,
-    onSuccess: () => {
-      toast.success("Library item deleted successfully!");
-      queryClient.invalidateQueries(["library"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete library item";
-      toast.error(message);
-    },
-  });
-
-  const handleCreateLibrary = (data) => {
-    createMutation.mutate(data);
+    }
   };
 
-  const handleEditLibrary = (data) => {
-    updateMutation.mutate({ id: editingLibrary.id, data });
-  };
-
-  const handleDeleteLibrary = (libraryId) => {
+  const handleDeleteLibrary = async (libraryId) => {
     if (!window.confirm("Are you sure you want to delete this library item?")) {
       return;
     }
-    deleteMutation.mutate(libraryId);
+    try {
+      await deleteLibrary(libraryId).unwrap();
+      toast.success("Library item deleted successfully!");
+    } catch (error) {
+      const message =
+        error.data?.message || "Failed to delete library item";
+      toast.error(message);
+    }
   };
 
   const openEditModal = (library) => {
@@ -120,11 +83,14 @@ const Library = () => {
     setIsEditModalOpen(true);
   };
 
-  const filteredLibrary =  libraryData?.filter(
-    (item) =>
-      item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  const filteredLibrary = (libraryData || [])
+    .filter(
+      (item) =>
+        item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .slice()
+    .reverse();
 
   if (isLoadingLibrary) {
     return <LoadingSpinner />;
@@ -140,11 +106,6 @@ const Library = () => {
         <AddLibraryModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onSubmit={handleCreateLibrary}
-          register={register}
-          handleSubmit={handleSubmit}
-          errors={errors}
-          isLoading={createMutation.isPending}
         />
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Add Book
@@ -183,6 +144,7 @@ const Library = () => {
                   libraryItem={item}
                   onEdit={() => openEditModal(item)}
                   onDelete={() => handleDeleteLibrary(item.id)}
+                  isDeleting={isDeleting}
                 />
               ))}
             </div>
@@ -218,8 +180,8 @@ const Library = () => {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? "Updating..." : "Update"}
+                <Button type="submit" disabled={isUpdating}>
+                  {isUpdating ? "Updating..." : "Update"}
                 </Button>
               </div>
             </form>

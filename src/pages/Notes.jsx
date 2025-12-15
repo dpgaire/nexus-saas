@@ -1,6 +1,10 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { notesAPI } from "@/services/api";
+import {
+  useGetNotesQuery,
+  useCreateNoteMutation,
+  useUpdateNoteMutation,
+  useDeleteNoteMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,80 +34,44 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { Search } from "lucide-react";
 
 const Notes = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-
   const [open, setOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [deleteNoteId, setDeleteNoteId] = useState(null);
 
-  const { data: notes, isLoading } = useQuery({
-    queryKey: ["notes"],
-    queryFn: async () => {
-      try {
-        const response = await notesAPI.getAll();
-        return response.data;
-      } catch (error) {
-        console.error("Error fetching notes:", error);
-        toast.error("Failed to load notes");
-        return [];
-      }
-    },
-  });
+  const { data: notes, isLoading } = useGetNotesQuery();
+  const [createNote, { isLoading: isCreating }] = useCreateNoteMutation();
+  const [updateNote, { isLoading: isUpdating }] = useUpdateNoteMutation();
+  const [deleteNote, { isLoading: isDeleting }] = useDeleteNoteMutation();
 
-  const createNote = useMutation({
-    mutationFn: notesAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["notes"]);
-      toast.success("Note created successfully");
-      setOpen(false);
-      setEditingNote(null);
-    },
-    onError: () => {
-      toast.error("Failed to create note");
-    },
-  });
-
-  const updateNote = useMutation({
-    mutationFn: (data) => notesAPI.update(editingNote.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["notes"]);
-      toast.success("Note updated successfully");
-      setOpen(false);
-      setEditingNote(null);
-    },
-    onError: () => {
-      toast.error("Failed to update note");
-    },
-  });
-
-  const deleteNote = useMutation({
-    mutationFn: notesAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["notes"]);
-      toast.success("Note deleted successfully");
-    },
-    onError: () => {
-      toast.error("Failed to delete note");
-    },
-  });
-
-  const confirmDeleteNote = () => {
+  const confirmDeleteNote = async () => {
     if (!deleteNoteId) return;
-    deleteNote.mutate(deleteNoteId, {
-      onSettled: () => setDeleteNoteId(null),
-    });
+    try {
+      await deleteNote(deleteNoteId).unwrap();
+      toast.success("Note deleted successfully");
+      setDeleteNoteId(null);
+    } catch {
+      toast.error("Failed to delete note");
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
 
-    if (editingNote) {
-      updateNote.mutate(data);
-    } else {
-      createNote.mutate(data);
+    try {
+      if (editingNote) {
+        await updateNote({ id: editingNote.id, ...data }).unwrap();
+        toast.success("Note updated successfully");
+      } else {
+        await createNote(data).unwrap();
+        toast.success("Note created successfully");
+      }
+      setOpen(false);
+      setEditingNote(null);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to save note");
     }
   };
 
@@ -125,9 +93,14 @@ const Notes = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((note) => {
-              createNote.mutate(note);
+            importedData.forEach(async (note) => {
+              try {
+                await createNote(note).unwrap();
+              } catch (err) {
+                 console.error("Error importing a note:", err);
+              }
             });
+            toast.success("Notes imported successfully!");
           } else {
             toast.error("Invalid JSON format. Expected an array of notes.");
           }
@@ -139,7 +112,6 @@ const Notes = () => {
     }
   };
 
-  // ✅ Copy handler
   const handleCopy = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -149,11 +121,14 @@ const Notes = () => {
     }
   };
 
-  const filteredNotes = notes?.filter(  
-    (note) =>
-      note.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      note.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  const filteredNotes = (notes || [])
+    ?.filter(
+      (note) =>
+        note.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        note.content?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .slice()
+    .reverse();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -190,8 +165,7 @@ const Notes = () => {
               <AlertDialogHeader>
                 <AlertDialogTitle>
                   {" "}
-                  Delete note "{notes.find((n) => n.id === deleteNoteId)?.title}
-                  "?
+                  Delete note "{notes?.find((n) => n.id === deleteNoteId)?.title}"?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   This action cannot be undone. The note will be permanently
@@ -205,8 +179,9 @@ const Notes = () => {
                 <AlertDialogAction
                   onClick={confirmDeleteNote}
                   className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isDeleting}
                 >
-                  Delete
+                  {isDeleting ? "Deleting..." : "Delete"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -235,9 +210,9 @@ const Notes = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="description">Description</label>
+                  <label htmlFor="content">Description</label>
                   <Textarea
-                    id="description"
+                    id="content"
                     name="content"
                     defaultValue={editingNote?.content || ""}
                     required
@@ -247,9 +222,15 @@ const Notes = () => {
                 <DialogFooter>
                   <Button
                     type="submit"
-                    disabled={createNote.isPending || updateNote.isPending}
+                    disabled={isCreating || isUpdating}
                   >
-                    {editingNote ? "Update" : "Create"}
+                    {isCreating || isUpdating
+                      ? editingNote
+                        ? "Updating..."
+                        : "Creating..."
+                      : editingNote
+                      ? "Update"
+                      : "Create"}
                   </Button>
                 </DialogFooter>
               </form>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { settingsAPI } from "../services/api";
+import { useGetSettingsQuery, useUpdateSettingsMutation } from "../app/services/api";
 import toast from "react-hot-toast";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -250,8 +249,6 @@ const fallbackSettings = {
 };
 
 const Settings = () => {
-  const queryClient = useQueryClient();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [color, setColor] = useState(fallbackSettings.themeColor);
   const [activeTab, setActiveTab] = useState("general.site");
 
@@ -260,51 +257,24 @@ const Settings = () => {
     defaultValues: fallbackSettings,
   });
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => {
-      try {
-        const response = await settingsAPI.getAll();
-        return { ...fallbackSettings, ...response.data };
-      } catch (error) {
-        console.error("Error fetching settings:", error);
-        toast.error("Failed to load settings. Using fallback values.");
-        return fallbackSettings;
-      }
-    },
-  });
-
-  const updateSettings = useMutation({
-    mutationFn: settingsAPI.update,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["settings"]);
-      toast.success("Settings saved successfully!");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to save settings");
-    },
-    onMutate: () => setIsSubmitting(true),
-    onSettled: () => setIsSubmitting(false),
-  });
+  const { data: settings, isLoading } = useGetSettingsQuery();
+  const [updateSettings, { isLoading: isUpdating }] = useUpdateSettingsMutation();
 
   useEffect(() => {
     if (settings) {
-      form.reset(settings);
-      setColor(settings.themeColor || "#3b82f6");
+      const mergedSettings = { ...fallbackSettings, ...settings };
+      form.reset(mergedSettings);
+      setColor(mergedSettings.themeColor || "#3b82f6");
     }
   }, [settings, form]);
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     data.themeColor = color;
-    updateSettings.mutate(data);
-  };
-
-  const handleBackupNow = async () => {
     try {
-      await settingsAPI.backup();
-      toast.success("Backup created successfully!");
-    } catch {
-      toast.error("Backup failed");
+        await updateSettings(data).unwrap();
+        toast.success("Settings saved successfully!");
+    } catch (error) {
+        toast.error(error.data?.message || "Failed to save settings");
     }
   };
 
@@ -382,7 +352,7 @@ const Settings = () => {
       <CardContent>
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <fieldset disabled={isSubmitting} className="space-y-6">
+            <fieldset disabled={isUpdating} className="space-y-6">
               <Tabs
                 value={activeTab}
                 onValueChange={setActiveTab}
@@ -862,14 +832,6 @@ const Settings = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={handleBackupNow}
-                    variant="secondary"
-                    className="w-full sm:w-auto"
-                  >
-                    Create Backup Now
-                  </Button>
                 </TabsContent>
 
                 <TabsContent value="advanced.email" className="space-y-4 mt-6">
@@ -936,10 +898,10 @@ const Settings = () => {
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={isSubmitting}
+                  disabled={isUpdating}
                   className="w-full sm:w-auto"
                 >
-                  {isSubmitting ? "Saving..." : "Save All Settings"}
+                  {isUpdating ? "Saving..." : "Save All Settings"}
                 </Button>
               </div>
             </fieldset>

@@ -1,6 +1,10 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { quickLinksAPI } from "@/services/api";
+import {
+  useGetQuickLinksQuery,
+  useCreateQuickLinkMutation,
+  useUpdateQuickLinkMutation,
+  useDeleteQuickLinkMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,73 +28,43 @@ import {
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const QuickLinks = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingLink, setEditingLink] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: quickLinks, isLoading } = useQuery({
-    queryKey: ["quickLinks"],
-    queryFn: async () => {
-      try {
-        const response = await quickLinksAPI.getAll();
-        return response.data;
-      } catch (error) {
-        console.error("Error fetching quick links:", error);
-        toast.error("Failed to load quick links");
-        return [];
-      }
-    },
-  });
+  const { data: quickLinks, isLoading } = useGetQuickLinksQuery();
+  const [createQuickLink, { isLoading: isCreating }] = useCreateQuickLinkMutation();
+  const [updateQuickLink, { isLoading: isUpdating }] = useUpdateQuickLinkMutation();
+  const [deleteQuickLink] = useDeleteQuickLinkMutation();
 
-  const createQuickLink = useMutation({
-    mutationFn: quickLinksAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["quickLinks"]);
-      toast.success("Quick link created successfully");
-      setOpen(false);
-      setEditingLink(null);
-    },
-    onError: () => {
-      toast.error("Failed to create quick link");
-    },
-  });
-
-  const updateQuickLink = useMutation({
-    mutationFn: (data) => quickLinksAPI.update(editingLink.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["quickLinks"]);
-      toast.success("Quick link updated successfully");
-      setOpen(false);
-      setEditingLink(null);
-    },
-    onError: () => {
-      toast.error("Failed to update quick link");
-    },
-  });
-
-  const deleteQuickLink = useMutation({
-    mutationFn: quickLinksAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["quickLinks"]);
-      toast.success("Quick link deleted successfully");
-    },
-    onError: () => {
-      toast.error("Failed to delete quick link");
-    },
-  });
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
 
-    if (editingLink) {
-      updateQuickLink.mutate(data);
-    } else {
-      createQuickLink.mutate(data);
+    try {
+      if (editingLink) {
+        await updateQuickLink({ id: editingLink.id, ...data }).unwrap();
+        toast.success("Quick link updated successfully");
+      } else {
+        await createQuickLink(data).unwrap();
+        toast.success("Quick link created successfully");
+      }
+      setOpen(false);
+      setEditingLink(null);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to save quick link");
     }
   };
+  
+  const handleDelete = async (id) => {
+      try {
+          await deleteQuickLink(id).unwrap();
+          toast.success("Quick link deleted successfully");
+      } catch (error) {
+          toast.error(error.data?.message || "Failed to delete quick link");
+      }
+  }
 
   const handleExport = () => {
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -110,9 +84,14 @@ const QuickLinks = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((link) => {
-              createQuickLink.mutate(link);
+            importedData.forEach(async (link) => {
+              try {
+                await createQuickLink(link).unwrap();
+              } catch (err) {
+                 console.error("Error importing a link:", err);
+              }
             });
+            toast.success("Quick links imported successfully!");
           } else {
             toast.error(
               "Invalid JSON format. Expected an array of quick links."
@@ -126,9 +105,9 @@ const QuickLinks = () => {
     }
   };
 
-  const filteredQuickLinks = quickLinks?.filter((link) =>
+  const filteredQuickLinks = (quickLinks || [])?.filter((link) =>
     link.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -191,11 +170,9 @@ const QuickLinks = () => {
                 <DialogFooter>
                   <Button
                     type="submit"
-                    disabled={
-                      createQuickLink.isPending || updateQuickLink.isPending
-                    }
+                    disabled={isCreating || isUpdating}
                   >
-                    {editingLink ? "Update" : "Create"}
+                    {isCreating || isUpdating ? (editingLink ? "Updating..." : "Creating...") : (editingLink ? "Update" : "Create")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -235,8 +212,6 @@ const QuickLinks = () => {
                       {link.title}
                     </a>
                   <p className="text-sm break-words text-gray-500 dark:text-gray-400">
-
-
                       {link.link}
                     </p>
                   </div>
@@ -255,7 +230,7 @@ const QuickLinks = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteQuickLink.mutate(link.id)}
+                    onClick={() => handleDelete(link.id)}
                   >
                     <Trash className="h-4 w-4" />
                   </Button>

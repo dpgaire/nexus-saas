@@ -13,17 +13,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAuth } from "../context/AuthContext";
+import { useDispatch } from "react-redux";
+import { useLoginMutation } from "../app/services/api";
+import { setCredentials } from "../app/slices/authSlice";
 import { loginSchema } from "../utils/validationSchemas";
 import { ArrowLeft } from "lucide-react";
+import { GoogleIcon } from "@/assets/icons";
+
+
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState(null);
-  const { login } = useAuth();
+  
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [login, { isLoading }] = useLoginMutation();
 
   const from = location.state?.from?.pathname || "/dashboard";
 
@@ -37,19 +44,39 @@ const Login = () => {
   });
 
   const onSubmit = async (data) => {
-    setIsLoading(true);
     setLoginError(null);
     try {
-      const success = await login(data);
-      if (success) {
-        navigate(from, { replace: true });
-      }
+      const { accessToken, refreshToken, ...userData } = await login(data).unwrap();
+      dispatch(setCredentials({ user: userData, token: accessToken, refreshToken }));
+      navigate(from, { replace: true });
     } catch (error) {
-      const message = error.response?.data?.message || "An unexpected error occurred.";
+      const message = error.data?.message || "An unexpected error occurred.";
       setLoginError(message);
       console.error("Login error:", error);
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  // TODO: Implement Google OAuth login logic here
+  const handleGoogleLogin = async () => {
+    try {
+      // Option 1: Redirect to your backend Google OAuth route
+      // window.location.href = "/api/auth/google";
+
+      // Option 2: If using @react-oauth/google
+      // googleLogin(); // from useGoogleLogin hook
+
+      // Option 3: Open popup or use Firebase, etc.
+
+      // Placeholder success (remove in production)
+      console.log("Google login initiated");
+
+      // Example success flow (replace with actual):
+      // const result = await googleAuth();
+      // dispatch(setCredentials({ user: result.user, token: result.token }));
+      // navigate(from, { replace: true });
+    } catch (error) {
+      setLoginError("Google login failed. Please try again.");
+      console.error("Google login error:", error);
     }
   };
 
@@ -65,6 +92,7 @@ const Login = () => {
             Back to Home
           </Link>
         </div>
+
         <Card className="w-full max-w-md shadow-xl transition-all duration-300 hover:shadow-2xl">
           <CardHeader className="space-y-2 text-center pb-6">
             <CardTitle className="text-3xl font-bold text-gray-900 dark:text-gray-50">
@@ -73,22 +101,45 @@ const Login = () => {
             <CardDescription className="text-gray-600 dark:text-gray-400">
               Log in to access your dashboard
             </CardDescription>
-             {loginError && (
-                <CardDescription className="text-lg font-semibold text-red-600 dark:text-red-400 animate-fade-in text-center">
-                  {loginError}!
-                </CardDescription>
-              )}
+            {loginError && (
+              <CardDescription className="text-lg font-semibold text-red-600 dark:text-red-400 animate-fade-in text-center">
+                {loginError}!
+              </CardDescription>
+            )}
           </CardHeader>
 
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
+            {/* Google Login Button */}
+            <div className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 flex items-center justify-center gap-3 
+                         border-gray-300 dark:border-gray-700 
+                         hover:bg-gray-50 dark:hover:bg-gray-800 
+                         transition-all duration-200 cursor-pointer"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+              >
+                <GoogleIcon />
+                <span className="font-medium">Sign in with Google</span>
+              </Button>
+
+              {/* Separator */}
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
+                <span className="flex-shrink mx-4 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 px-2">
+                  OR
+                </span>
+                <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
+              </div>
+            </div>
+
+            {/* Email/Password Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-             
               {/* Email Field */}
               <div className="space-y-2">
-                <Label
-                  htmlFor="email"
-                  className="text-gray-700 dark:text-gray-300"
-                >
+                <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">
                   Email Address
                 </Label>
                 <div className="relative group">
@@ -102,7 +153,7 @@ const Login = () => {
                            dark:border-gray-700 dark:focus:border-blue-500
                            focus:ring-2 focus:ring-blue-500/20"
                     {...register("email")}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoading}
                   />
                 </div>
                 {errors.email && (
@@ -114,10 +165,7 @@ const Login = () => {
 
               {/* Password Field */}
               <div className="space-y-2">
-                <Label
-                  htmlFor="password"
-                  className="text-gray-700 dark:text-gray-300"
-                >
+                <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">
                   Password
                 </Label>
                 <div className="relative group">
@@ -131,7 +179,7 @@ const Login = () => {
                            dark:border-gray-700 dark:focus:border-blue-500
                            focus:ring-2 focus:ring-blue-500/20"
                     {...register("password")}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoading}
                   />
                   <button
                     type="button"
@@ -139,15 +187,9 @@ const Login = () => {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 
                            dark:hover:text-gray-300 transition-colors"
                     tabIndex={-1}
-                    aria-label={
-                      showPassword ? "Hide password" : "Show password"
-                    }
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
                 {errors.password && (
@@ -156,8 +198,6 @@ const Login = () => {
                   </p>
                 )}
               </div>
-
-              
 
               {/* Submit Button */}
               <Button

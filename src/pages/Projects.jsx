@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetProjectsQuery,
+  useCreateProjectMutation,
+  useUpdateProjectMutation,
+  useDeleteProjectMutation,
+} from "../app/services/api";
 import { Plus, Search, Edit, Trash2, X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { projectAPI } from "../services/api";
 import { projectSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -46,23 +50,15 @@ const categoryOptions = [
 ];
 
 const Projects = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
 
-  const { data: projectsData = [], isLoading: isLoadingProjects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const response = await projectAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching projects:", error);
-      toast.error("Failed to load projects");
-    },
-  });
+  const { data: projectsData = [], isLoading: isLoadingProjects } = useGetProjectsQuery();
+  const [createProject, { isLoading: isCreating }] = useCreateProjectMutation();
+  const [updateProject, { isLoading: isUpdating }] = useUpdateProjectMutation();
+  const [deleteProject, { isLoading: isDeleting }] = useDeleteProjectMutation();
 
   const {
     register: registerCreate,
@@ -85,7 +81,7 @@ const Projects = () => {
     name: "technologies",
   });
 
-  const {
+    const {
     fields: fieldsCreateScreenshots,
     append: appendCreateScreenshots,
     remove: removeCreateScreenshots,
@@ -103,7 +99,7 @@ const Projects = () => {
     resolver: yupResolver(projectSchema),
   });
 
-  const {
+    const {
     fields: fieldsEdit,
     append: appendEdit,
     remove: removeEdit,
@@ -112,7 +108,7 @@ const Projects = () => {
     name: "technologies",
   });
 
-  const {
+    const {
     fields: fieldsEditScreenshots,
     append: appendEditScreenshots,
     remove: removeEditScreenshots,
@@ -121,63 +117,45 @@ const Projects = () => {
     name: "screenshots",
   });
 
-  const createMutation = useMutation({
-    mutationFn: projectAPI.create,
-    onSuccess: () => {
+  const handleCreateProject = async (data) => {
+    try {
+      await createProject(data).unwrap();
       toast.success("Project created successfully!");
       setIsCreateModalOpen(false);
       resetCreate();
-      queryClient.invalidateQueries(["projects"]);
-    },
-    onError: (error) => {
+    } catch (error) {
       const message =
-        error.response?.data?.message || "Failed to create project";
+        error.data?.message || "Failed to create project";
       toast.error(message);
-    },
-  });
+    }
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => projectAPI.update(id, data),
-    onSuccess: () => {
+  const handleEditProject = async (data) => {
+    try {
+      await updateProject({ id: editingProject.id, ...data }).unwrap();
       toast.success("Project updated successfully!");
       setIsEditModalOpen(false);
       setEditingProject(null);
       resetEdit();
-      queryClient.invalidateQueries(["projects"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to update project";
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to update project";
       toast.error(message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: projectAPI.delete,
-    onSuccess: () => {
-      toast.success("Project deleted successfully!");
-      queryClient.invalidateQueries(["projects"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete project";
-      toast.error(message);
-    },
-  });
-
-  const handleCreateProject = (data) => {
-    createMutation.mutate(data);
+    }
   };
 
-  const handleEditProject = (data) => {
-    updateMutation.mutate({ id: editingProject.id, data });
-  };
-
-  const handleDeleteProject = (projectId) => {
+  const handleDeleteProject = async (projectId) => {
     if (!window.confirm("Are you sure you want to delete this project?")) {
       return;
     }
-    deleteMutation.mutate(projectId);
+    try {
+      await deleteProject(projectId).unwrap();
+      toast.success("Project deleted successfully!");
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to delete project";
+      toast.error(message);
+    }
   };
 
   const openEditModal = (project) => {
@@ -204,9 +182,14 @@ const Projects = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((project) => {
-              createMutation.mutate(project);
+            importedData.forEach(async (project) => {
+              try {
+                await createProject(project).unwrap();
+              } catch (error) {
+                console.error("Error importing a project:", error);
+              }
             });
+            toast.success("Projects imported successfully!");
           } else {
             toast.error("Invalid JSON format. Expected an array of projects.");
           }
@@ -218,15 +201,16 @@ const Projects = () => {
     }
   };
 
-  const filteredProjects = projectsData.filter(
+  const filteredProjects = (projectsData || []).filter(
     (project) =>
       project.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoadingProjects) {
     return <LoadingSpinner />;
   }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row items-start gap-2 md:gap-0 md:items-center justify-between">
@@ -417,8 +401,8 @@ const Projects = () => {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending ? "Creating..." : "Create"}
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? "Creating..." : "Create"}
                   </Button>
                 </div>
               </form>
@@ -486,7 +470,7 @@ const Projects = () => {
                         size="sm"
                         className="text-red-500 cursor-pointer"
                         onClick={() => handleDeleteProject(project.id)}
-                        disabled={deleteMutation.isPending}
+                        disabled={isDeleting}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -638,10 +622,9 @@ const Projects = () => {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? "Updating..." : "Update"}
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update"}
               </Button>
-              .
             </div>
           </form>
         </DialogContent>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGetContactsQuery, useDeleteContactMutation } from "../app/services/api";
 import { Search, User, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,48 +22,26 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { contactAPI } from "../services/api";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const Contacts = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedContacts, setSelectedContacts] = useState([]);
 
-  const { data: contactData = [], isLoading } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: async () => {
-      const response = await contactAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching contacts:", error);
-      toast.error("Failed to load contacts");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: contactAPI.delete,
-    onSuccess: () => {
-      toast.success("Contact deleted successfully!");
-      queryClient.invalidateQueries(["contacts"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete contact";
-      toast.error(message);
-    },
-  });
+  const { data: contactData = [], isLoading } = useGetContactsQuery();
+  const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
   const handleDeleteSelected = async () => {
     try {
       await Promise.all(
-        selectedContacts.map((id) => deleteMutation.mutateAsync(id))
+        selectedContacts.map((id) => deleteContact(id).unwrap())
       );
+      toast.success("Selected contacts deleted successfully!");
       setSelectedContacts([]);
     } catch (error) {
       console.error("Error deleting selected contacts:", error);
+      toast.error(error.data?.message || "Failed to delete contacts.");
     }
   };
 
@@ -81,11 +59,11 @@ const Contacts = () => {
     );
   };
 
-  const filteredContacts = contactData.filter(
+  const filteredContacts = (contactData || []).filter(
     (user) =>
       user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -105,9 +83,9 @@ const Contacts = () => {
         {selectedContacts.length > 0 && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">
+              <Button variant="destructive" disabled={isDeleting}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Selected ({selectedContacts.length})
+                {isDeleting ? "Deleting..." : `Delete Selected (${selectedContacts.length})`}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -120,8 +98,8 @@ const Contacts = () => {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteSelected}>
-                  Delete
+                <AlertDialogAction onClick={handleDeleteSelected} disabled={isDeleting}>
+                  {isDeleting ? "Deleting..." : "Delete"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -161,13 +139,13 @@ const Contacts = () => {
                 id="select-all"
                 onCheckedChange={handleSelectAll}
                 checked={
-                  selectedContacts.length === selectedContacts.length &&
+                  selectedContacts.length === filteredContacts.length &&
                   filteredContacts.length > 0
                 }
               />
               <label htmlFor="select-all">
                 {selectedContacts.length > 0 &&
-                selectedContacts.length === selectedContacts.length
+                selectedContacts.length === filteredContacts.length
                   ? "Deselect All"
                   : "Select All"}
               </label>

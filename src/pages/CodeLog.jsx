@@ -1,8 +1,12 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { codeLogAPI } from "@/services/api";
+import {
+  useGetCodeLogsQuery,
+  useCreateCodeLogMutation,
+  useUpdateCodeLogMutation,
+  useDeleteCodeLogMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,24 +26,14 @@ import { codeLogSchema } from "@/utils/validationSchemas";
 import { Search } from "lucide-react";
 
 const CodeLog = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingLog, setEditingLog] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: codeLogs, isLoading } = useQuery({
-    queryKey: ["codeLogs"],
-    queryFn: async () => {
-      try {
-        const response = await codeLogAPI.getAll();
-        return response.data;
-      } catch (error) {
-        console.error("Error fetching code logs:", error);
-        toast.error("Failed to load code logs");
-        return [];
-      }
-    },
-  });
+  const { data: codeLogs, isLoading } = useGetCodeLogsQuery();
+  const [createCodeLog, { isLoading: isCreating }] = useCreateCodeLogMutation();
+  const [updateCodeLog, { isLoading: isUpdating }] = useUpdateCodeLogMutation();
+  const [deleteCodeLog] = useDeleteCodeLogMutation();
 
   const {
     register,
@@ -50,52 +44,31 @@ const CodeLog = () => {
     resolver: yupResolver(codeLogSchema),
   });
 
-  const createLog = useMutation({
-    mutationFn: codeLogAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["codeLogs"]);
-      toast.success("Code log created successfully");
+  const onSubmit = async (data) => {
+    try {
+      if (editingLog) {
+        await updateCodeLog({ id: editingLog.id, ...data }).unwrap();
+        toast.success("Code log updated successfully");
+      } else {
+        await createCodeLog(data).unwrap();
+        toast.success("Code log created successfully");
+      }
       setOpen(false);
       setEditingLog(null);
       reset();
-    },
-    onError: () => {
-      toast.error("Failed to create code log");
-    },
-  });
-
-  const updateLog = useMutation({
-    mutationFn: (data) => codeLogAPI.update(editingLog.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["codeLogs"]);
-      toast.success("Code log updated successfully");
-      setOpen(false);
-      setEditingLog(null);
-      reset();
-    },
-    onError: () => {
-      toast.error("Failed to update code log");
-    },
-  });
-
-  const deleteLog = useMutation({
-    mutationFn: codeLogAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["codeLogs"]);
-      toast.success("Code log deleted successfully");
-    },
-    onError: () => {
-      toast.error("Failed to delete code log");
-    },
-  });
-
-  const onSubmit = (data) => {
-    if (editingLog) {
-      updateLog.mutate(data);
-    } else {
-      createLog.mutate(data);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to save code log");
     }
   };
+  
+  const handleDelete = async (id) => {
+      try {
+          await deleteCodeLog(id).unwrap();
+          toast.success("Code log deleted successfully");
+      } catch (error) {
+          toast.error(error.data?.message || "Failed to delete code log");
+      }
+  }
 
   const handleCopy = async (text) => {
     try {
@@ -124,9 +97,14 @@ const CodeLog = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((log) => {
-              createLog.mutate(log);
+            importedData.forEach(async (log) => {
+              try {
+                await createCodeLog(log).unwrap();
+              } catch (err) {
+                console.error("Error importing a log:", err)
+              }
             });
+            toast.success("Code logs imported successfully!");
           } else {
             toast.error("Invalid JSON format. Expected an array of code logs.");
           }
@@ -138,9 +116,9 @@ const CodeLog = () => {
     }
   };
 
-  const filteredCodeLogs = codeLogs?.filter((code) =>
+  const filteredCodeLogs = (codeLogs || [])?.filter((code) =>
     code.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -218,9 +196,9 @@ const CodeLog = () => {
                 <DialogFooter>
                   <Button
                     type="submit"
-                    disabled={createLog.isPending || updateLog.isPending}
+                    disabled={isCreating || isUpdating}
                   >
-                    {editingLog ? "Update" : "Create"}
+                    {isCreating || isUpdating ? (editingLog ? "Updating..." : "Creating...") : (editingLog ? "Update" : "Create")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -274,7 +252,7 @@ const CodeLog = () => {
                     variant="ghost"
                     size="sm"
                     className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                    onClick={() => deleteLog.mutate(log.id)}
+                    onClick={() => handleDelete(log.id)}
                   >
                     <Trash className="h-4 w-4" />
                   </Button>

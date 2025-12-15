@@ -6,7 +6,6 @@ import {
   Navigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { AuthProvider, useAuth } from "./context/AuthContext";
 import "./App.css";
 
 import Layout from "./components/Layout";
@@ -45,8 +44,6 @@ import {
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
 
 function App() {
-  const { isAuthenticated } = useAuth();
-
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
@@ -105,25 +102,13 @@ function App() {
                     {/* Root Redirect */}
                     <Route
                       path="/"
-                      element={
-                        isAuthenticated ? (
-                          <Navigate to="/dashboard" replace />
-                        ) : (
-                          <Navigate to="/" replace />
-                        )
-                      }
+                      element={<Navigate to="/dashboard" replace />}
                     />
 
                     {/* 404 → Dashboard */}
                     <Route
                       path="*"
-                      element={
-                        isAuthenticated ? (
-                          <Navigate to="/dashboard" replace />
-                        ) : (
-                          <Navigate to="/" replace />
-                        )
-                      }
+                      element={<Navigate to="/dashboard" replace />}
                     />
                   </Routes>
                 </Layout>

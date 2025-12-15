@@ -1,8 +1,12 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { promptStorageAPI } from "@/services/api";
+import {
+  useGetPromptStoragesQuery,
+  useCreatePromptStorageMutation,
+  useUpdatePromptStorageMutation,
+  useDeletePromptStorageMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,26 +25,14 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { promptStorageSchema } from "@/utils/validationSchemas";
 
 const PromptStorage = () => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: prompts, isLoading: isLoadings } = useQuery({
-    queryKey: ["prompts"],
-    queryFn: async () => {
-      try {
-        const response = await promptStorageAPI.getAll();
-        return response.data;
-      } catch (error) {
-        console.error("Error fetching prompts:", error);
-        toast.error("Failed to load prompts");
-        return [];
-      }
-    },
-  });
-
-  console.log('prompts',prompts)
+  const { data: prompts, isLoading: isLoadings } = useGetPromptStoragesQuery();
+  const [createPromptStorage, { isLoading: isCreating }] = useCreatePromptStorageMutation();
+  const [updatePromptStorage, { isLoading: isUpdating }] = useUpdatePromptStorageMutation();
+  const [deletePromptStorage,{isLoading:isDeleting}] = useDeletePromptStorageMutation();
 
   const {
     register,
@@ -51,52 +43,31 @@ const PromptStorage = () => {
     resolver: yupResolver(promptStorageSchema),
   });
 
-  const createPrompt = useMutation({
-    mutationFn: promptStorageAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["prompts"]);
-      toast.success("Prompt created successfully");
+  const onSubmit = async (data) => {
+    try {
+      if (editingPrompt) {
+        await updatePromptStorage({ id: editingPrompt.id, ...data }).unwrap();
+        toast.success("Prompt updated successfully");
+      } else {
+        await createPromptStorage(data).unwrap();
+        toast.success("Prompt created successfully");
+      }
       setOpen(false);
       setEditingPrompt(null);
       reset();
-    },
-    onError: () => {
-      toast.error("Failed to create prompt");
-    },
-  });
-
-  const updatePrompt = useMutation({
-    mutationFn: (data) => promptStorageAPI.update(editingPrompt.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["prompts"]);
-      toast.success("Prompt updated successfully");
-      setOpen(false);
-      setEditingPrompt(null);
-      reset();
-    },
-    onError: () => {
-      toast.error("Failed to update prompt");
-    },
-  });
-
-  const deletePrompt = useMutation({
-    mutationFn: promptStorageAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["prompts"]);
-      toast.success("Prompt deleted successfully");
-    },
-    onError: () => {
-      toast.error("Failed to delete prompt");
-    },
-  });
-
-  const onSubmit = (data) => {
-    if (editingPrompt) {
-      updatePrompt.mutate(data);
-    } else {
-      createPrompt.mutate(data);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to save prompt");
     }
   };
+
+  const handleDelete = async (id) => {
+      try {
+          await deletePromptStorage(id).unwrap();
+          toast.success("Prompt deleted successfully");
+      } catch (error) {
+          toast.error(error.data?.message || "Failed to delete prompt");
+      }
+  }
 
   const handleCopy = async (text) => {
     try {
@@ -127,8 +98,12 @@ const PromptStorage = () => {
       try {
         const importedData = JSON.parse(e.target.result);
         if (Array.isArray(importedData)) {
-          importedData.forEach((prompt) => {
-            createPrompt.mutate(prompt);
+          importedData.forEach(async (prompt) => {
+            try {
+              await createPromptStorage(prompt).unwrap();
+            } catch (error) {
+              console.error("Error importing prompt:", error);
+            }
           });
           toast.success(`Imported ${importedData.length} prompts`);
         } else {
@@ -141,10 +116,10 @@ const PromptStorage = () => {
     reader.readAsText(file);
   };
 
-  const filteredPrompts = prompts?.filter((prompt) =>
+  const filteredPrompts = (prompts || [])?.filter((prompt) =>
     prompt.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     prompt.ai_category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).slice().reverse();
 
   if (isLoadings) {
     return <LoadingSpinner />;
@@ -267,10 +242,10 @@ const PromptStorage = () => {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={createPrompt.isPending || updatePrompt.isPending}
+                      disabled={isCreating || isUpdating}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {createPrompt.isPending || updatePrompt.isPending ? (
+                      {isCreating || isUpdating ? (
                         <>
                           Saving...
                         </>
@@ -348,7 +323,8 @@ const PromptStorage = () => {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
-                        onClick={() => deletePrompt.mutate(prompt.id)}
+                        onClick={() => handleDelete(prompt.id)}
+                        disabled={isDeleting}
                       >
                         <Trash className="h-3.5 w-3.5" />
                       </Button>

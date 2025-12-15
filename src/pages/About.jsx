@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetAboutsQuery,
+  useCreateAboutMutation,
+  useUpdateAboutMutation,
+} from "../app/services/api";
 import {
   Plus,
   Edit,
@@ -33,7 +37,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { aboutAPI } from "../services/api";
 import { aboutSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -58,23 +61,14 @@ const emptyAbout = {
 };
 
 const About = () => {
-  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const { data: aboutData, isLoading } = useQuery({
-    queryKey: ["about"],
-    queryFn: async () => {
-      const response = await aboutAPI.getAll();
-      return response.data && response.data.length > 0
-        ? response.data[0]
-        : null;
-    },
-    onError: (error) => {
-      console.error("Error fetching about:", error);
-      toast.error("Failed to load about information");
-    },
-  });
+  const { data: abouts = [], isLoading } = useGetAboutsQuery();
+  const aboutData = abouts[0];
+
+  const [createAbout, { isLoading: isCreating }] = useCreateAboutMutation();
+  const [updateAbout, { isLoading: isUpdating }] = useUpdateAboutMutation();
 
   const {
     register,
@@ -109,39 +103,20 @@ const About = () => {
     remove: removeStat,
   } = useFieldArray({ control, name: "stats" });
 
-  const createMutation = useMutation({
-    mutationFn: aboutAPI.create,
-    onSuccess: () => {
-      toast.success("About information created successfully!");
+  const handleSaveAbout = async (data) => {
+    try {
+      if (aboutData) {
+        await updateAbout({ id: aboutData.id, ...data }).unwrap();
+        toast.success("About information updated successfully!");
+      } else {
+        await createAbout(data).unwrap();
+        toast.success("About information created successfully!");
+      }
       setIsModalOpen(false);
-      queryClient.invalidateQueries(["about"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to create about information";
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to save about information";
       toast.error(message);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data) => aboutAPI.update(aboutData.id, data),
-    onSuccess: () => {
-      toast.success("About information updated successfully!");
-      setIsModalOpen(false);
-      queryClient.invalidateQueries(["about"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to update about information";
-      toast.error(message);
-    },
-  });
-
-  const handleSaveAbout = (data) => {
-    if (aboutData) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data);
     }
   };
 
@@ -300,7 +275,7 @@ const About = () => {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => appendTag("")}
+              onClick={() => appendTag({ value: "" })}
               className="w-full"
             >
               <Plus className="h-4 w-4 mr-1" /> Add Tag
@@ -525,10 +500,10 @@ const About = () => {
           <Button
             type="submit"
             size="lg"
-            disabled={createMutation.isPending || updateMutation.isPending}
+            disabled={isCreating || isUpdating}
             className="min-w-32"
           >
-            {createMutation.isPending || updateMutation.isPending ? (
+            {isCreating || isUpdating ? (
               <>Saving...</>
             ) : (
               <>

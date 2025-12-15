@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetUsersQuery,
+  useDeleteUserMutation,
+} from "../app/services/api";
 import { Search, Trash2, User, Mail, Plus, Edit } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,7 +21,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { usersAPI } from "../services/api";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
@@ -26,47 +28,25 @@ import AddUserModal from "@/components/AddUserModal";
 import EditUserModal from "@/components/EditUserModal";
 
 const Users = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [isAddUserModalOpen, setAddUserModalOpen] = useState(false);
   const [isEditUserModalOpen, setEditUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const { data: usersData = [], isLoading: isLoadingUsers } = useQuery({
-    queryKey: ["users"],
-    queryFn: async () => {
-      const response = await usersAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching users:", error);
-      toast.error("Failed to load users");
-    },
-  });
-
-  console.log("usersData", usersData);
-
-  const deleteMutation = useMutation({
-    mutationFn: usersAPI.delete,
-    onSuccess: () => {
-      toast.success("User deleted successfully!");
-      queryClient.invalidateQueries(["users"]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to delete user";
-      toast.error(message);
-    },
-  });
+  const { data: users = [], isLoading } = useGetUsersQuery();
+  const [deleteUser, { isLoading: isDeleting }] = useDeleteUserMutation();
 
   const handleDeleteSelected = async () => {
     try {
       await Promise.all(
-        selectedUsers.map((id) => deleteMutation.mutateAsync(id))
+        selectedUsers.map((id) => deleteUser(id).unwrap())
       );
+      toast.success("Selected users deleted successfully!");
       setSelectedUsers([]);
     } catch (error) {
       console.error("Error deleting selected users:", error);
+      toast.error(error.data?.message || "Failed to delete selected users.");
     }
   };
 
@@ -90,16 +70,18 @@ const Users = () => {
   };
 
   const filteredUsers = useMemo(() => {
-    return usersData
+    return (users || [])
       .filter(
         (user) =>
           user?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
       )
+      .slice() // Create a shallow copy before reversing
       .reverse();
-  }, [usersData, searchTerm]);
+  }, [users, searchTerm]);
 
   const getInitials = (name) => {
+    if (!name) return "";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -108,7 +90,7 @@ const Users = () => {
       .slice(0, 2);
   };
 
-  if (isLoadingUsers) {
+  if (isLoading) {
     return <LoadingSpinner />;
   }
 
@@ -124,7 +106,7 @@ const Users = () => {
             <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
               Manage and connect with{" "}
               <span className="font-semibold text-primary">
-                {usersData.length}
+                {users.length}
               </span>{" "}
               active users
             </p>
@@ -142,9 +124,9 @@ const Users = () => {
             {selectedUsers.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="lg" className="shadow-lg">
+                  <Button variant="destructive" size="lg" className="shadow-lg" disabled={isDeleting}>
                     <Trash2 className="mr-2 h-5 w-5" />
-                    Delete Selected ({selectedUsers.length})
+                    {isDeleting ? 'Deleting...' : `Delete Selected (${selectedUsers.length})`}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -161,8 +143,9 @@ const Users = () => {
                     <AlertDialogAction
                       onClick={handleDeleteSelected}
                       className="bg-red-600 hover:bg-red-700"
+                      disabled={isDeleting}
                     >
-                      Delete Permanently
+                      {isDeleting ? 'Deleting...' : 'Delete Permanently'}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -197,7 +180,7 @@ const Users = () => {
             <div className="mt-3 flex items-center justify-between gap-4 text-sm text-gray-500">
               <div>
                 <Badge variant="secondary" className="font-medium">
-                  {filteredUsers.length} of {usersData.length} users
+                  {filteredUsers.length} of {users.length} users
                 </Badge>
                 {selectedUsers.length > 0 && (
                   <span className="flex items-center gap-1">

@@ -1,5 +1,8 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetChatHistoriesQuery,
+  useDeleteChatHistoryMutation,
+} from "../app/services/api";
 import { Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,57 +13,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { chatHistoryAPI } from "../services/api";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import ReactJson from 'react-json-view';
+import ReactJson from "react-json-view";
 
 const ChatHistory = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: chatHistories = [], isLoading: isLoadingHistories } = useQuery({
-    queryKey: ["chatHistory"],
-    queryFn: async () => {
-      const response = await chatHistoryAPI.getAll();
-      return response.data?.chatHistories || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching chat histories:", error);
-      toast.error("Failed to load chat histories");
-    },
-  });
+  const { data: chatHistories = [], isLoading: isLoadingHistories } = useGetChatHistoriesQuery();
+  const [deleteChatHistory, { isLoading: isDeleting }] = useDeleteChatHistoryMutation();
 
-  const deleteMutation = useMutation({
-    mutationFn: ({ userId, chatId }) => chatHistoryAPI.delete(userId, chatId),
-    onSuccess: () => {
-      toast.success("Chat history deleted successfully!");
-      queryClient.invalidateQueries(["chatHistory"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete chat history";
-      toast.error(message);
-    },
-  });
-
-  const handleDelete = (userId, chatId) => {
+  const handleDelete = async (userId, chatId) => {
     if (window.confirm("Are you sure you want to delete this chat history?")) {
-      deleteMutation.mutate({ userId, chatId });
+      try {
+        await deleteChatHistory({ userId, chatId }).unwrap();
+        toast.success("Chat history deleted successfully!");
+      } catch (error) {
+        const message =
+          error.data?.message || "Failed to delete chat history";
+        toast.error(message);
+      }
     }
   };
 
- const filteredChatHistories = chatHistories
-  .filter((item) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      item.title?.toLowerCase().includes(search) ||
-      item.fullName?.toLowerCase().includes(search) ||
-      item.email?.toLowerCase().includes(search)
-    );
-  })
-  .reverse(); // Sorts latest first if your chatHistories are in chronological order
-
+  const filteredChatHistories = (chatHistories || [])
+    .filter((item) => {
+      const search = searchTerm.toLowerCase();
+      return (
+        item.title?.toLowerCase().includes(search) ||
+        item.fullName?.toLowerCase().includes(search) ||
+        item.email?.toLowerCase().includes(search)
+      );
+    })
+    .slice()
+    .reverse();
 
   if (isLoadingHistories) {
     return <LoadingSpinner />;
@@ -101,19 +87,25 @@ const ChatHistory = () => {
                 <div>
                   <CardTitle>{item.title}</CardTitle>
                   <CardDescription>{item.fullName}</CardDescription>
-                  <CardDescription className="text-gray-400">{item.email}</CardDescription>
-
+                  <CardDescription className="text-gray-400">
+                    {item.email}
+                  </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(item.userId, item.id)} disabled={deleteMutation.isPending}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(item.userId, item.id)}
+                    disabled={isDeleting}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <ReactJson 
-                src={item.messages} 
+              <ReactJson
+                src={item.messages}
                 theme="solarized"
                 displayDataTypes={false}
                 enableClipboard={false}

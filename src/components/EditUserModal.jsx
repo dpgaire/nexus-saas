@@ -2,8 +2,7 @@ import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usersAPI } from "@/services/api";
+import { useUpdateUserMutation } from "@/app/services/api";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-// ✅ Validation schema with role
 const userSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Invalid email address"),
@@ -35,7 +33,7 @@ const userSchema = z.object({
 });
 
 const EditUserModal = ({ isOpen, onClose, user }) => {
-  const queryClient = useQueryClient();
+  const [updateUser, { isLoading }] = useUpdateUserMutation();
 
   const {
     register,
@@ -46,14 +44,8 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
     watch,
   } = useForm({
     resolver: zodResolver(userSchema),
-    defaultValues: {
-      fullName: "",
-      email: "",
-      role: "User",
-    },
   });
 
-  // ✅ Load user data into form when modal opens
   useEffect(() => {
     if (user) {
       reset({
@@ -64,20 +56,14 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
     }
   }, [user, reset]);
 
-  const mutation = useMutation({
-    mutationFn: (data) => usersAPI.update(user.id, data),
-    onSuccess: () => {
+  const onSubmit = async (data) => {
+    try {
+      await updateUser({ id: user.id, ...data }).unwrap();
       toast.success("User updated successfully!");
-      queryClient.invalidateQueries(["users"]);
       onClose();
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to update user");
-    },
-  });
-
-  const onSubmit = (data) => {
-    mutation.mutate(data);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to update user");
+    }
   };
 
   return (
@@ -134,8 +120,8 @@ const EditUserModal = ({ isOpen, onClose, user }) => {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isLoading}>
-              {mutation.isLoading ? "Updating..." : "Update User"}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Updating..." : "Update User"}
             </Button>
           </DialogFooter>
         </form>

@@ -1,7 +1,6 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usersAPI } from "@/services/api";
+import { useCreateUserMutation } from "@/app/services/api";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 
 
 const AddUserModal = ({ isOpen, onClose }) => {
-  const queryClient = useQueryClient();
+  const [createUser, { isLoading }] = useCreateUserMutation();
 
   const {
     register,
@@ -41,21 +40,15 @@ const AddUserModal = ({ isOpen, onClose }) => {
     defaultValues: { role: "User" },
   });
 
-  const mutation = useMutation({
-    mutationFn: usersAPI.create,
-    onSuccess: () => {
+  const onSubmit = async (data) => {
+    try {
+      await createUser(data).unwrap();
       toast.success("User created successfully!");
-      queryClient.invalidateQueries(["users"]);
       onClose();
       reset();
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to create user");
-    },
-  });
-
-  const onSubmit = (data) => {
-    mutation.mutate(data);
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to create user");
+    }
   };
 
   return (
@@ -121,8 +114,8 @@ const AddUserModal = ({ isOpen, onClose }) => {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isLoading}>
-              {mutation.isLoading ? "Creating..." : "Create User"}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>
         </form>

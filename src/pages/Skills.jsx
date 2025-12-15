@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetSkillsQuery,
+  useCreateSkillMutation,
+  useUpdateSkillMutation,
+  useDeleteSkillMutation,
+} from "@/app/services/api";
 import {
   Plus,
   Search,
@@ -30,29 +35,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { skillsAPI } from "../services/api";
 import { skillSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const Skills = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
 
-  const { data: skillsData = [], isLoading: isLoadingSkills } = useQuery({
-    queryKey: ["skills"],
-    queryFn: async () => {
-      const response = await skillsAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching skills:", error);
-      toast.error("Failed to load skills");
-    },
-  });
+  const { data: skillsData = [], isLoading: isLoadingSkills } = useGetSkillsQuery();
+  const [createSkill, { isLoading: isCreating }] = useCreateSkillMutation();
+  const [updateSkill, { isLoading: isUpdating }] = useUpdateSkillMutation();
+  const [deleteSkill, { isLoading: isDeleting }] = useDeleteSkillMutation();
 
   const {
     register: registerCreate,
@@ -95,63 +91,45 @@ const Skills = () => {
     name: "skills",
   });
 
-  const createMutation = useMutation({
-    mutationFn: skillsAPI.create,
-    onSuccess: () => {
+  const handleCreateSkill = async (data) => {
+    try {
+      await createSkill(data).unwrap();
       toast.success("Skill created successfully!");
       setIsCreateModalOpen(false);
       resetCreate();
-      queryClient.invalidateQueries(["skills"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to create skill";
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to create skill";
       toast.error(message);
-    },
-  });
+    }
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => skillsAPI.update(id, data),
-    onSuccess: () => {
+  const handleEditSkill = async (data) => {
+    try {
+      await updateSkill({ id: editingSkill.id, ...data }).unwrap();
       toast.success("Skill updated successfully!");
       setIsEditModalOpen(false);
       setEditingSkill(null);
       resetEdit();
-      queryClient.invalidateQueries(["skills"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to update skill";
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to update skill";
       toast.error(message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: skillsAPI.delete,
-    onSuccess: () => {
-      toast.success("Skill deleted successfully!");
-      queryClient.invalidateQueries(["skills"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete skill";
-      toast.error(message);
-    },
-  });
-
-  const handleCreateSkill = (data) => {
-    createMutation.mutate(data);
+    }
   };
 
-  const handleEditSkill = (data) => {
-    updateMutation.mutate({ id: editingSkill.id, data });
-  };
-
-  const handleDeleteSkill = (skillId) => {
+  const handleDeleteSkill = async (skillId) => {
     if (!window.confirm("Are you sure you want to delete this skill?")) {
       return;
     }
-    deleteMutation.mutate(skillId);
+    try {
+      await deleteSkill(skillId).unwrap();
+      toast.success("Skill deleted successfully!");
+    } catch (error) {
+       const message =
+        error.data?.message || "Failed to delete skill";
+      toast.error(message);
+    }
   };
 
   const openEditModal = (skill) => {
@@ -178,9 +156,14 @@ const Skills = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((skill) => {
-              createMutation.mutate(skill);
+            importedData.forEach(async (skill) => {
+              try {
+                await createSkill(skill).unwrap();
+              } catch (err) {
+                 console.error("Error importing a skill:", err);
+              }
             });
+             toast.success("Skills imported successfully!");
           } else {
             toast.error("Invalid JSON format. Expected an array of skills.");
           }
@@ -192,9 +175,9 @@ const Skills = () => {
     }
   };
 
-  const filteredSkills = skillsData.filter((skill) =>
+  const filteredSkills = (skillsData || []).filter((skill) =>
     skill.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoadingSkills) {
     return <LoadingSpinner />;
@@ -313,16 +296,16 @@ const Skills = () => {
               <div className="flex items-center space-x-2 pt-4">
                 <Button
                   type="submit"
-                  disabled={createMutation.isPending}
+                  disabled={isCreating}
                   className="flex-1"
                 >
-                  {createMutation.isPending ? "Creating..." : "Create Skill"}
+                  {isCreating ? "Creating..." : "Create Skill"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsCreateModalOpen(false)}
-                  disabled={createMutation.isPending}
+                  disabled={isCreating}
                 >
                   Cancel
                 </Button>
@@ -386,7 +369,7 @@ const Skills = () => {
                       size="sm"
                       onClick={() => handleDeleteSkill(skill.id)}
                       className="text-red-600 hover:text-red-700"
-                      disabled={deleteMutation.isPending}
+                      disabled={isDeleting}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -477,16 +460,16 @@ const Skills = () => {
             <div className="flex items-center space-x-2 pt-4">
               <Button
                 type="submit"
-                disabled={updateMutation.isPending}
+                disabled={isUpdating}
                 className="flex-1"
               >
-                {updateMutation.isPending ? "Updating..." : "Update Skill"}
+                {isUpdating ? "Updating..." : "Update Skill"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsEditModalOpen(false)}
-                disabled={updateMutation.isPending}
+                disabled={isUpdating}
               >
                 Cancel
               </Button>
