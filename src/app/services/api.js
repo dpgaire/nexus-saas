@@ -2,8 +2,8 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { setCredentials, logOut } from "../slices/authSlice";
 
 const baseQuery = fetchBaseQuery({
-  // baseUrl: "https://ai-chatbot-api-ten.vercel.app/api",
-  baseUrl: "http://localhost:3000/api",
+  baseUrl: "https://ai-chatbot-api-ten.vercel.app/api",
+  // baseUrl: "http://localhost:3000/api",
 
   prepareHeaders: (headers, { getState }) => {
     const token = getState().auth.token;
