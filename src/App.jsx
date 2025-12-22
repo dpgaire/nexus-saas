@@ -27,7 +27,6 @@ import {
   QuickLinks,
   ChatUser,
   ChatHistory,
-  CodeLog,
   Tasks,
   MarkdownEditor,
   RichTextEditor,
@@ -43,7 +42,8 @@ import {
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import PromptStoragePage from "./features/prompt-storage/pages/PromptStoragePage";
+import { CodeLogPage, PromptStoragePage } from "./features";
+
 
 function App() {
   return (
@@ -92,7 +92,7 @@ function App() {
                       />
 
                       {/* Dev Tools */}
-                      <Route path="/code-log" element={<CodeLog />} />
+                      <Route path="/code-log" element={<CodeLogPage />} />
                       <Route
                         path="/prompt-storage"
                         element={<PromptStoragePage />}
