@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { QuickLinkItem } from "./QuickLinkItem";
 import { QuickLinkItemSkeleton } from "./QuickLinkItemSkeleton";
-import { SearchInput } from "@/shared/components/SearchInput";
+import { EmptyState } from "@/shared/components/EmptyState";
 
 export function QuickLinksList({
   quickLinks,
@@ -10,24 +10,35 @@ export function QuickLinksList({
   isDeleting,
   isFetching,
 }) {
+  const isEmpty = !isFetching && quickLinks.length === 0;
+  const hasData = !isFetching && quickLinks.length > 0;
+
   return (
     <Card>
       <CardContent>
-        <ul className="space-y-4">
-          {isFetching
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <QuickLinkItemSkeleton key={i} />
-              ))
-            : quickLinks.map((quickLink) => (
-                <QuickLinkItem
-                  key={quickLink.id}
-                  quickLink={quickLink}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  isDeleting={isDeleting}
-                />
-              ))}
-        </ul>
+        {isFetching && (
+          <ul className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <QuickLinkItemSkeleton key={i} />
+            ))}
+          </ul>
+        )}
+
+        {isEmpty && <EmptyState title="No links found" />}
+
+        {hasData && (
+          <ul className="space-y-4">
+            {quickLinks.map((quickLink) => (
+              <QuickLinkItem
+                key={quickLink.id}
+                quickLink={quickLink}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                isDeleting={isDeleting}
+              />
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

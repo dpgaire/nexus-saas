@@ -1,5 +1,6 @@
 import { PromptCard } from "./PromptCard";
 import { PromptCardSkeleton } from "./PromptCardSkeleton";
+import { EmptyState } from "@/shared/components/EmptyState";
 
 export function PromptGrid({
   prompts,
@@ -8,13 +9,24 @@ export function PromptGrid({
   isDeleting,
   isFetching = false,
 }) {
+  const isEmpty = !isFetching && prompts.length === 0;
+  const hasData = !isFetching && prompts.length > 0;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {isFetching
-        ? Array.from({ length: 3 }).map((_, i) => (
+    <>
+      {isFetching && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, i) => (
             <PromptCardSkeleton key={i} />
-          ))
-        : prompts.map((prompt) => (
+          ))}
+        </div>
+      )}
+
+      {isEmpty && <EmptyState title="No prompts found" />}
+
+      {hasData && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {prompts.map((prompt) => (
             <PromptCard
               key={prompt.id}
               prompt={prompt}
@@ -23,6 +35,8 @@ export function PromptGrid({
               isDeleting={isDeleting}
             />
           ))}
-    </div>
+        </div>
+      )}
+    </>
   );
 }

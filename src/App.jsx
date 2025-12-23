@@ -42,10 +42,17 @@ import {
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import { CodeLogPage, PromptStoragePage,QuickLinksPage } from "./features";
-
+import { CodeLogPage, PromptStoragePage, QuickLinksPage } from "./features";
+import { useNetworkStatus } from "./context/NetworkStatusContext";
+import OfflineScreen from "./components/OfflineScreen";
 
 function App() {
+  const isOnline = useNetworkStatus();
+
+  if (!isOnline) {
+    return <OfflineScreen />;
+  }
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">

@@ -25,12 +25,19 @@ export function CodeLogFormDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit Code Log" : "Add Code Log"}</DialogTitle>
+          <DialogTitle>
+            {editing ? "Edit Code Log" : "Add Code Log"}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSave)} className="space-y-4">
           <Input {...register("title")} placeholder="Title" />
-          <Textarea {...register("code")} placeholder="Code" rows={8} />
+          <Textarea
+            {...register("code")}
+            placeholder="Code"
+            rows={8}
+            className="w-full h-40 resize-none overflow-y-auto border rounded-md p-2"
+          />
 
           <Button type="submit" disabled={isLoading}>
             {isCreating

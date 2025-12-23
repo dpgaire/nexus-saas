@@ -6,8 +6,8 @@ import { PromptGrid } from "../components/PromptGrid";
 import { PromptFormDialog } from "../components/PromptFormDialog";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { useJsonImportExport } from "@/shared/hooks/useJsonImportExport";
-import { createJsonImportHandler } from "@/shared/utils";
 import { PageHeader } from "@/shared/components/PageHeader";
+import { createJsonImportHandler } from "@/shared/utils/fileImport";
 
 export default function PromptStoragePage() {
   // feature business logic

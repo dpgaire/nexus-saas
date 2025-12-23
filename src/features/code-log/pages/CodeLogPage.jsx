@@ -6,8 +6,8 @@ import { CodeLogGrid } from "../components/CodeLogGrid";
 import { CodeLogFormDialog } from "../components/CodeLogFormDialog";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { useJsonImportExport } from "@/shared/hooks/useJsonImportExport";
-import { createJsonImportHandler } from "@/shared/utils";
 import { PageHeader } from "@/shared/components/PageHeader";
+import { createJsonImportHandler } from "@/shared/utils/fileImport";
 
 export default function CodeLogPage() {
   // feature business logic

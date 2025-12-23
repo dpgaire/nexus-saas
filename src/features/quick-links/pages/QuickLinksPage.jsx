@@ -5,9 +5,9 @@ import { QuickLinksList } from "../components/QuickLinksList";
 import { QuickLinkFormDialog } from "../components/QuickLinkFormDialog";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { useJsonImportExport } from "@/shared/hooks/useJsonImportExport";
-import { createJsonImportHandler } from "@/shared/utils";
 import { PageHeader } from "@/shared/components/PageHeader";
 import { SearchInput } from "@/shared/components/SearchInput";
+import { createJsonImportHandler } from "@/shared/utils/fileImport";
 
 export default function QuickLinksPage() {
   // feature business logic
