@@ -42,7 +42,7 @@ import {
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import { CodeLogPage, PromptStoragePage } from "./features";
+import { CodeLogPage, PromptStoragePage,QuickLinksPage } from "./features";
 
 
 function App() {
@@ -70,7 +70,7 @@ function App() {
                       <Route path="/training" element={<Training />} />
                       <Route path="/skills" element={<Skills />} />
                       <Route path="/notes" element={<Notes />} />
-                      <Route path="/quicklinks" element={<QuickLinks />} />
+                      <Route path="/quicklinks" element={<QuickLinksPage />} />
                       <Route path="/tasks" element={<Tasks />} />
                       <Route path="/library" element={<Library />} />
                       <Route path="/settings" element={<Settings />} />
