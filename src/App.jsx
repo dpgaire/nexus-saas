@@ -23,7 +23,6 @@ import {
   Blogs,
   Chat,
   Skills,
-  Notes,
   QuickLinks,
   ChatUser,
   ChatHistory,
@@ -42,7 +41,7 @@ import {
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import { CodeLogPage, PromptStoragePage, QuickLinksPage } from "./features";
+import { CodeLogPage, PromptStoragePage, QuickLinksPage, NotesPage } from "./features";
 import { useNetworkStatus } from "./context/NetworkStatusContext";
 import OfflineScreen from "./components/OfflineScreen";
 
@@ -76,7 +75,7 @@ function App() {
                       <Route path="/blogs" element={<Blogs />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/skills" element={<Skills />} />
-                      <Route path="/notes" element={<Notes />} />
+                      <Route path="/notes" element={<NotesPage />} />
                       <Route path="/quicklinks" element={<QuickLinksPage />} />
                       <Route path="/tasks" element={<Tasks />} />
                       <Route path="/library" element={<Library />} />
