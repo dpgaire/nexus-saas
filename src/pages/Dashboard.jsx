@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Bar, Pie } from "react-chartjs-2";
 import { Link } from "react-router-dom";
+import { useGetStatsQuery } from "../app/services/api";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 import {
   Chart as ChartJS,
@@ -22,6 +24,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import toast from "react-hot-toast";
 
 ChartJS.register(
   CategoryScale,
@@ -34,17 +37,25 @@ ChartJS.register(
 );
 
 const Dashboard = () => {
+  const { data: stats, error, isLoading } = useGetStatsQuery();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) {
+    toast.error("Failed to load dashboard stats.");
+    return <div>Error loading dashboard data.</div>;
+  }
+  
   const barChartData = {
-    labels: ["January", "February", "March", "April", "May", "June", "July"],
+    labels: stats?.monthlyStats?.labels || [],
     datasets: [
       {
         label: "Blogs",
-        data: [65, 59, 80, 81, 56, 55, 40],
+        data: stats?.monthlyStats?.blogsData || [],
         backgroundColor: "rgba(59, 130, 246, 0.5)",
       },
       {
         label: "Projects",
-        data: [28, 48, 40, 19, 86, 27, 90],
+        data: stats?.monthlyStats?.projectsData || [],
         backgroundColor: "rgba(16, 185, 129, 0.5)",
       },
     ],
@@ -54,7 +65,12 @@ const Dashboard = () => {
     labels: ["Blogs", "Projects", "Skills", "Feedback"],
     datasets: [
       {
-        data: [125, 42, 78, 15],
+        data: [
+            stats?.counts?.blogs || 0, 
+            stats?.counts?.projects || 0, 
+            stats?.counts?.skills || 0, 
+            stats?.counts?.contacts || 0
+        ],
         backgroundColor: [
           "rgba(59, 130, 246, 0.5)",
           "rgba(16, 185, 129, 0.5)",
@@ -88,7 +104,7 @@ const Dashboard = () => {
   const statCards = [
     {
       title: "Blogs",
-      value: 125,
+      value: stats?.counts?.blogs || 0,
       icon: Users,
       link: "/blogs",
       description: "Total number of blogs",
@@ -97,7 +113,7 @@ const Dashboard = () => {
     },
     {
       title: "Projects",
-      value: 42,
+      value: stats?.counts?.projects || 0,
       icon: FolderOpen,
       link: "/projects",
       description: "Total number of projects",
@@ -106,7 +122,7 @@ const Dashboard = () => {
     },
     {
       title: "Skills",
-      value: 78,
+      value: stats?.counts?.skills || 0,
       link: "/skills",
       icon: Layers,
       description: "Total number of skills",
@@ -115,7 +131,7 @@ const Dashboard = () => {
     },
     {
       title: "Feedback",
-      value: 15,
+      value: stats?.counts?.contacts || 0,
       link: "/contact",
       icon: FileText,
       description: "User feedback received",
@@ -134,21 +150,21 @@ const Dashboard = () => {
   const analyticsData = [
     {
       title: "Blog Page Views",
-      value: "1.2M",
+      value: stats?.analytics?.blogViews || 0,
       icon: Eye,
       color: "text-pink-600",
       bgColor: "bg-pink-50",
     },
     {
       title: "Project Views",
-      value: "850K",
+      value: stats?.analytics?.projectViews || 0,
       icon: Eye,
       color: "text-indigo-600",
       bgColor: "bg-indigo-50",
     },
     {
       title: "Feedbacks",
-      value: 15,
+      value: stats?.counts?.contacts || 0,
       icon: MessageSquare,
       color: "text-red-600",
       bgColor: "bg-red-50",

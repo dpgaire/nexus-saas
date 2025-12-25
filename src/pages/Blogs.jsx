@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetBlogsQuery,
+  useCreateBlogMutation,
+  useUpdateBlogMutation,
+  useDeleteBlogMutation,
+} from "../app/services/api";
 import { Plus, Search, Edit, Trash2, X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +35,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { blogAPI } from "../services/api";
 import { blogSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -47,23 +51,15 @@ const categoryOptions = [
 ];
 
 const Blogs = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState(null);
 
-  const { data: blogData = [], isLoading: isLoadingBlog } = useQuery({
-    queryKey: ["blogs"],
-    queryFn: async () => {
-      const response = await blogAPI.getAll();
-      return response.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching blogs:", error);
-      toast.error("Failed to load blogs");
-    },
-  });
+  const { data: blogData = [], isLoading: isLoadingBlog } = useGetBlogsQuery();
+  const [createBlog, { isLoading: isCreating }] = useCreateBlogMutation();
+  const [updateBlog, { isLoading: isUpdating }] = useUpdateBlogMutation();
+  const [deleteBlog, { isLoading: isDeleting }] = useDeleteBlogMutation();
 
   const {
     register: registerCreate,
@@ -104,60 +100,42 @@ const Blogs = () => {
     name: "tags",
   });
 
-  const createMutation = useMutation({
-    mutationFn: blogAPI.create,
-    onSuccess: () => {
+  const handleCreateBlog = async (data) => {
+    try {
+      await createBlog(data).unwrap();
       toast.success("Blog created successfully!");
       setIsCreateModalOpen(false);
       resetCreate();
-      queryClient.invalidateQueries(["blogs"]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to create blog";
+    } catch (error) {
+      const message = error.data?.message || "Failed to create blog";
       toast.error(message);
-    },
-  });
+    }
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => blogAPI.update(id, data),
-    onSuccess: () => {
+  const handleEditBlog = async (data) => {
+    try {
+      await updateBlog({ id: editingBlog.id, ...data }).unwrap();
       toast.success("Blog updated successfully!");
       setIsEditModalOpen(false);
       setEditingBlog(null);
       resetEdit();
-      queryClient.invalidateQueries(["blogs"]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to update blog";
+    } catch (error) {
+      const message = error.data?.message || "Failed to update blog";
       toast.error(message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: blogAPI.delete,
-    onSuccess: () => {
-      toast.success("Blog deleted successfully!");
-      queryClient.invalidateQueries(["blogs"]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to delete blog";
-      toast.error(message);
-    },
-  });
-
-  const handleCreateBlog = (data) => {
-    createMutation.mutate(data);
+    }
   };
 
-  const handleEditBlog = (data) => {
-    updateMutation.mutate({ id: editingBlog.id, data });
-  };
-
-  const handleDeleteBlog = (blogId) => {
+  const handleDeleteBlog = async (blogId) => {
     if (!window.confirm("Are you sure you want to delete this blog?")) {
       return;
     }
-    deleteMutation.mutate(blogId);
+    try {
+      await deleteBlog(blogId).unwrap();
+      toast.success("Blog deleted successfully!");
+    } catch (error) {
+      const message = error.data?.message || "Failed to delete blog";
+      toast.error(message);
+    }
   };
 
   const openEditModal = (blog) => {
@@ -184,9 +162,14 @@ const Blogs = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((blog) => {
-              createMutation.mutate(blog);
+            importedData.forEach(async (blog) => {
+              try {
+                await createBlog(blog).unwrap();
+              } catch (error) {
+                 console.error("Error importing a blog:", error);
+              }
             });
+            toast.success("Blogs imported successfully!");
           } else {
             toast.error("Invalid JSON format. Expected an array of blogs.");
           }
@@ -198,11 +181,11 @@ const Blogs = () => {
     }
   };
 
-  const filteredBlogs = blogData.filter(
+  const filteredBlogs = (blogData || []).filter(
     (blog) =>
       blog.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       blog.content?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   if (isLoadingBlog) {
     return <LoadingSpinner />;
@@ -352,8 +335,8 @@ const Blogs = () => {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending ? "Creating..." : "Create"}
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? "Creating..." : "Create"}
                   </Button>
                 </div>
               </form>
@@ -419,7 +402,7 @@ const Blogs = () => {
                           size="sm"
                           className="text-red-500"
                           onClick={() => handleDeleteBlog(blog.id)}
-                          disabled={deleteMutation.isPending}
+                          disabled={isDeleting}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -526,8 +509,8 @@ const Blogs = () => {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? "Updating..." : "Update"}
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update"}
               </Button>
             </div>
           </form>

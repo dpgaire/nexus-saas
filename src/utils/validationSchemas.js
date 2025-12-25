@@ -91,23 +91,7 @@ export const aboutSchema = yup.object({
   }),
 });
 
-export const skillSchema = yup.object({
-  title: yup.string().required("Title is required"),
-  icon: yup.string().optional(),
-  skills: yup
-    .array()
-    .of(
-      yup.object({
-        name: yup.string().required("Skill name is required"),
-        percentage: yup
-          .number()
-          .required("Percentage is required")
-          .min(0)
-          .max(100),
-      })
-    )
-    .optional(),
-});
+
 
 export const projectSchema = yup.object({
   title: yup.string().required("Title is required"),
@@ -162,10 +146,6 @@ export const chatSchema = yup.object({
   query: yup.string().required("Query is required"),
 });
 
-export const codeLogSchema = yup.object({
-  title: yup.string().required("Title is required"),
-  code: yup.string().required("Code is required"),
-});
 
 export const taskSchema = yup.object({
   title: yup.string().required("Title is required"),
@@ -175,16 +155,4 @@ export const taskSchema = yup.object({
   dueDate: yup.date().optional(),
 });
 
-export const librarySchema = yup.object({
-  title: yup.string().required("Title is required"),
-  description: yup.string().optional(),
-  url: yup.string().url("Must be a valid URL").required("PDF URL is required"),
-  author: yup.string().optional(),
-  coverImage: yup.string().url("Must be a valid URL").optional(),
-});
 
-export const promptStorageSchema = yup.object({
-  title: yup.string().required("Title is required"),
-  ai_category: yup.string().required("AI Category is required"),
-  prompt: yup.string().required("Prompt is required"),
-});

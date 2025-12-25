@@ -1,14 +1,17 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Menu, X, Moon, Sun } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useSelector } from "react-redux";
+import { selectCurrentUser, selectCurrentToken } from "@/app/slices/authSlice";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const LandingLayout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const user = useSelector(selectCurrentUser);
+  const token = useSelector(selectCurrentToken);
+  const isAuthenticated = !!token;
   const { theme, toggleTheme } = useTheme();
 
   return (

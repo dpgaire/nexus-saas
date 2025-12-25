@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetChatUsersQuery,
+  useDeleteChatUserMutation,
+} from "../app/services/api";
 import { Search, Trash2, User, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,48 +21,27 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { chatUserAPI } from "../services/api";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
 
 const ChatUser = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
 
-  const { data: usersData = [], isLoading: isLoadingUsers } = useQuery({
-    queryKey: ["chatUsers"],
-    queryFn: async () => {
-      const response = await chatUserAPI.getAll();
-      return response.data.users || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching chat users:", error);
-      toast.error("Failed to load chat users");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: chatUserAPI.delete,
-    onSuccess: () => {
-      toast.success("User deleted successfully!");
-      queryClient.invalidateQueries(["chatUsers"]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to delete user";
-      toast.error(message);
-    },
-  });
+  const { data: usersData = [], isLoading: isLoadingUsers } = useGetChatUsersQuery();
+  const [deleteChatUser, { isLoading: isDeleting }] = useDeleteChatUserMutation();
 
   const handleDeleteSelected = async () => {
     try {
       await Promise.all(
-        selectedUsers.map((id) => deleteMutation.mutateAsync(id))
+        selectedUsers.map((id) => deleteChatUser(id).unwrap())
       );
+      toast.success("Selected users deleted successfully!");
       setSelectedUsers([]);
     } catch (error) {
       console.error("Error deleting selected users:", error);
+      toast.error(error.data?.message || "Failed to delete selected users.");
     }
   };
 
@@ -78,16 +60,18 @@ const ChatUser = () => {
   };
 
   const filteredUsers = useMemo(() => {
-    return usersData
+    return (usersData || [])
       ?.filter(
         (user) =>
           user?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
       )
+      .slice()
       .reverse();
   }, [usersData, searchTerm]);
 
   const getInitials = (name) => {
+    if (!name) return "";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -121,9 +105,9 @@ const ChatUser = () => {
           {selectedUsers.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="lg" className="shadow-lg">
+                <Button variant="destructive" size="lg" className="shadow-lg" disabled={isDeleting}>
                   <Trash2 className="mr-2 h-5 w-5" />
-                  Delete Selected ({selectedUsers.length})
+                  {isDeleting ? "Deleting..." : `Delete Selected (${selectedUsers.length})`}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -140,8 +124,9 @@ const ChatUser = () => {
                   <AlertDialogAction
                     onClick={handleDeleteSelected}
                     className="bg-red-600 hover:bg-red-700"
+                    disabled={isDeleting}
                   >
-                    Delete Permanently
+                    {isDeleting ? "Deleting..." : "Delete Permanently"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

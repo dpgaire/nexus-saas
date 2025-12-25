@@ -1,8 +1,13 @@
 import React, { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Edit, Trash2, Save, X, Upload } from "lucide-react";
+import {
+  useGetTrainingsQuery,
+  useCreateTrainingMutation,
+  useUpdateTrainingMutation,
+  useDeleteTrainingMutation,
+} from "../app/services/api";
+import { Plus, Search, Edit, Trash2, X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +27,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { trainingAPI } from "../services/api";
 import { trainingSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -30,23 +34,15 @@ import ReactJson from "react-json-view";
 import { Copy } from "lucide-react";
 
 const Training = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTraining, setEditingTraining] = useState(null);
 
-  const { data: trainingData = [], isLoading: isLoadingTraining } = useQuery({
-    queryKey: ["training"],
-    queryFn: async () => {
-      const response = await trainingAPI.getAll();
-      return response.data?.data || [];
-    },
-    onError: (error) => {
-      console.error("Error fetching training data:", error);
-      toast.error("Failed to load training data");
-    },
-  });
+  const { data: trainingData = [], isLoading: isLoadingTraining } = useGetTrainingsQuery();
+  const [createTraining, { isLoading: isCreating }] = useCreateTrainingMutation();
+  const [updateTraining, { isLoading: isUpdating }] = useUpdateTrainingMutation();
+  const [deleteTraining, { isLoading: isDeleting }] = useDeleteTrainingMutation();
 
   const {
     register: registerCreate,
@@ -89,61 +85,43 @@ const Training = () => {
     name: "tags",
   });
 
-  const createMutation = useMutation({
-    mutationFn: trainingAPI.create,
-    onSuccess: () => {
+  const handleCreate = async (data) => {
+    try {
+      await createTraining(data).unwrap();
       toast.success("Training data created successfully!");
       setIsCreateModalOpen(false);
       resetCreate();
-      queryClient.invalidateQueries(["training"]);
-    },
-    onError: (error) => {
+    } catch (error) {
       const message =
-        error.response?.data?.message || "Failed to create training data";
+        error.data?.message || "Failed to create training data";
       toast.error(message);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => trainingAPI.update(id, data),
-    onSuccess: () => {
-      toast.success("Training data updated successfully!");
-      setIsEditModalOpen(false);
-      setEditingTraining(null);
-      resetEdit();
-      queryClient.invalidateQueries(["training"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to update training data";
-      toast.error(message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: trainingAPI.delete,
-    onSuccess: () => {
-      toast.success("Training data deleted successfully!");
-      queryClient.invalidateQueries(["training"]);
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || "Failed to delete training data";
-      toast.error(message);
-    },
-  });
-
-  const handleCreate = (data) => {
-    createMutation.mutate(data);
+    }
   };
 
-  const handleEdit = (data) => {
-    updateMutation.mutate({ id: editingTraining.id, data });
+  const handleEdit = async (data) => {
+    try {
+        await updateTraining({ id: editingTraining.id, ...data }).unwrap();
+        toast.success("Training data updated successfully!");
+        setIsEditModalOpen(false);
+        setEditingTraining(null);
+        resetEdit();
+    } catch (error) {
+        const message =
+            error.data?.message || "Failed to update training data";
+        toast.error(message);
+    }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this training data?")) {
-      deleteMutation.mutate(id);
+      try {
+        await deleteTraining(id).unwrap();
+        toast.success("Training data deleted successfully!");
+      } catch (error) {
+        const message =
+            error.data?.message || "Failed to delete training data";
+        toast.error(message);
+      }
     }
   };
 
@@ -171,9 +149,14 @@ const Training = () => {
         try {
           const importedData = JSON.parse(e.target.result);
           if (Array.isArray(importedData)) {
-            importedData.forEach((item) => {
-              createMutation.mutate(item);
+            importedData.forEach(async (item) => {
+              try {
+                await createTraining(item).unwrap();
+              } catch (err) {
+                 console.error("Error importing an item:", err);
+              }
             });
+            toast.success("Training data imported successfully!");
           } else {
             toast.error(
               "Invalid JSON format. Expected an array of training data."
@@ -187,12 +170,12 @@ const Training = () => {
     }
   };
 
-  const filteredTrainingData = trainingData.filter(
+  const filteredTrainingData = (trainingData || []).filter(
     (item) =>
       item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  ).slice().reverse();
 
   const handleCopy = async (text) => {
     try {
@@ -290,14 +273,14 @@ const Training = () => {
                     type="button"
                     variant="outline"
                     className="mt-2"
-                    onClick={() => appendCreate("")}
+                    onClick={() => appendCreate({ value: "" })}
                   >
                     Add Tag
                   </Button>
                 </div>
 
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? "Creating..." : "Create"}
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating ? "Creating..." : "Create"}
                 </Button>
               </form>
             </DialogContent>
@@ -340,7 +323,7 @@ const Training = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDelete(item.id)}
-                    disabled={deleteMutation.isPending}
+                    disabled={isDeleting}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -358,11 +341,13 @@ const Training = () => {
               <ReactJson
                 src={item}
                 theme="solarized"
-                onEdit={(edit) => {
-                  updateMutation.mutate({
-                    id: item.id,
-                    data: edit.updated_src,
-                  });
+                onEdit={async (edit) => {
+                   try {
+                    await updateTraining({ id: item.id, ...edit.updated_src }).unwrap();
+                    toast.success("Training data updated successfully!");
+                   } catch(err) {
+                    toast.error("Failed to update training data");
+                   }
                 }}
                 onDelete={() => {
                   handleDelete(item.id);
@@ -409,13 +394,13 @@ const Training = () => {
                 type="button"
                 variant="outline"
                 className="mt-2"
-                onClick={() => appendEdit("")}
+                onClick={() => appendEdit({ value: "" })}
               >
                 Add Tag
               </Button>
             </div>
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Updating..." : "Update"}
+            <Button type="submit" disabled={isUpdating}>
+              {isUpdating ? "Updating..." : "Update"}
             </Button>
           </form>
         </DialogContent>

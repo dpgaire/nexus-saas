@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+  useGetUserQuery,
+  useUpdateUserMutation,
+} from "../app/services/api";
+import { useSelector, useDispatch } from "react-redux";
+import { selectCurrentUser, setCredentials } from "../app/slices/authSlice";
 
 import {
   User,
@@ -32,101 +33,23 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-import { useAuth } from "../context/AuthContext";
 import { userUpdateSchema } from "../utils/validationSchemas";
-import { usersAPI } from "../services/api";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import toast from "react-hot-toast";
 
 const Profile = () => {
-  const queryClient = useQueryClient();
-  const { user: authUser, setUser } = useAuth();
+  const dispatch = useDispatch();
+  const authUser = useSelector(selectCurrentUser);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const {
-    data: user = authUser,
-    isLoading: isLoadingUser,
-  } = useQuery({
-    queryKey: ["user", authUser?.id],
-    queryFn: async () => {
-      const res = await usersAPI.getById(authUser.id);
-      return res.data;
-    },
-    enabled: !!authUser?.id,
-    staleTime: 5 * 60 * 1000,
+  const { data: user, isLoading: isLoadingUser } = useGetUserQuery(authUser.id, {
+    skip: !authUser?.id,
   });
-
-  const updateMutation = useMutation({
-  mutationFn: (payload) => usersAPI.updateProfile(user.id, payload),
-  onMutate: async (payload) => {
-    await queryClient.cancelQueries({ queryKey: ["user", user.id] });
-
-    const previous = queryClient.getQueryData(["user", user.id]);
-
-    queryClient.setQueryData(["user", user.id], old => ({
-      ...old,
-      ...payload,
-      image: payload.image || old.image,
-    }));
-
-    return { previous };
-  },
-  onError: (err, payload, context) => {
-    queryClient.setQueryData(["user", user.id], context?.previous);
-    toast.error("Update failed");
-  },
-  onSettled: () => {
-    queryClient.invalidateQueries({ queryKey: ["users"] });
-  },
-});
-const regenMutation = useMutation({
-  mutationFn: (data) => usersAPI.updateProfile(user.id, data),
-
-  onMutate: async () => {
-    await queryClient.cancelQueries({ queryKey: ["user", authUser?.id] });
-
-    const previous = queryClient.getQueryData(["user", authUser?.id]);
-    queryClient.setQueryData(["user", authUser?.id], {
-      ...previous,
-      apiKey: "Regenerating...",
-    });
-
-    return { previous };
-  },
-
-  onError: (err, _variables, context) => {
-    if (context?.previous) {
-      queryClient.setQueryData(["user", authUser?.id], context.previous);
-    }
-    toast.error(err.response?.data?.message ?? "Failed to regenerate API key");
-  },
-
-  onSuccess: (res) => {
-    // 👇 handle response safely
-    const newApiKey = res?.data?.apiKey || res?.apiKey;
-    if (!newApiKey) {
-      toast.error("API key not found in server response");
-      return;
-    }
-
-    const updated = { ...user, apiKey: newApiKey };
-
-    // ✅ Update both React Query cache and AuthContext
-    queryClient.setQueryData(["user", authUser?.id], updated);
-    setUser(updated);
-
-    toast.success("API key regenerated!");
-  },
-
-  onSettled: () => {
-    queryClient.invalidateQueries({ queryKey: ["user", authUser?.id] });
-  },
-});
-
-
+  
+  const [updateUser, { isLoading: isUpdating }] = useUpdateUserMutation();
 
   const {
     register,
@@ -136,15 +59,54 @@ const regenMutation = useMutation({
     setValue,
   } = useForm({
     resolver: yupResolver(userUpdateSchema),
-    defaultValues: {
-      fullName: user?.fullName ?? "",
-      email: user?.email ?? "",
-      role: user?.role ?? "User",
-      image: user?.image ?? "",
-    },
   });
 
-useEffect(() => {
+  useEffect(() => {
+    if (user) {
+      reset({
+        fullName: user.fullName ?? "",
+        email: user.email ?? "",
+        role: user.role ?? "admin",
+        image: user.image ?? "",
+      });
+      // Also update the auth context user data if it's different
+      if (JSON.stringify(user) !== JSON.stringify(authUser)) {
+        dispatch(setCredentials({ user, token: localStorage.getItem('token'), refreshToken: localStorage.getItem('refreshToken') }));
+      }
+    }
+  }, [user, authUser, reset, dispatch]);
+
+  const onSubmit = async (data) => {
+    const payload = {
+      fullName: data.fullName,
+      email: data.email,
+      role: data.role,
+      image: data.image || null,
+      ...(data.password && { password: data.password }),
+    };
+    try {
+      await updateUser({ id: user.id, ...payload }).unwrap();
+      toast.success("Profile updated successfully!");
+      setIsEditing(false);
+    } catch (error) {
+      toast.error(error.data?.message || "Update failed");
+    }
+  };
+
+  const onRegenSubmit = async () => {
+    const payload = {
+      regenerateApiKey: true,
+    };
+     try {
+      const updatedUser = await updateUser({ id: user.id, ...payload }).unwrap();
+      toast.success("API Key regenerated successfully!");
+    } catch (error) {
+      toast.error(error.data?.message || "Failed to regenerate API key");
+    }
+  };
+
+
+  const handleCancel = () => {
     if (user) {
       reset({
         fullName: user.fullName ?? "",
@@ -153,37 +115,6 @@ useEffect(() => {
         image: user.image ?? "",
       });
     }
-  }, [user, reset]);
-
-  const onSubmit = (data) => {
-    const payload = {
-      fullName: data.fullName,
-      email: data.email,
-      role: data.role,
-      image: data.image || null,
-    };
-    updateMutation.mutate(payload);
-  };
-
-  const regenSubmit = (data) => {
-      const payload = {
-      fullName: data.fullName,
-      email: data.email,
-      regenerateApiKey:true,
-      role: data.role,
-      image: data.image || null,
-    };
-    regenMutation.mutate(payload);
-  };
-
-
-  const handleCancel = () => {
-    reset({
-      fullName: user?.fullName ?? "",
-      email: user?.email ?? "",
-      role: user?.role ?? "admin",
-      image: user?.image ?? "",
-    });
     setIsEditing(false);
   };
 
@@ -395,16 +326,16 @@ useEffect(() => {
                   <div className="flex items-center space-x-4 pt-4">
                     <Button
                       type="submit"
-                      disabled={updateMutation.isPending}
+                      disabled={isUpdating}
                       className="flex items-center space-x-2"
                     >
-                      {updateMutation.isPending ? (
+                      {isUpdating ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                       ) : (
                         <Save className="h-4 w-4" />
                       )}
                       <span>
-                        {updateMutation.isPending ? "Saving…" : "Save Changes"}
+                        {isUpdating ? "Saving…" : "Save Changes"}
                       </span>
                     </Button>
 
@@ -412,7 +343,7 @@ useEffect(() => {
                       type="button"
                       variant="outline"
                       onClick={handleCancel}
-                      disabled={updateMutation.isPending}
+                      disabled={isUpdating}
                     >
                       Cancel
                     </Button>
@@ -457,13 +388,13 @@ useEffect(() => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => regenSubmit(user)}
-                        disabled={regenMutation.isPending}
+                        onClick={onRegenSubmit}
+                        disabled={isUpdating}
                         className="flex items-center space-x-1"
                       >
                         <RefreshCw
                           className={`h-4 w-4 ${
-                            regenMutation.isPending ? "animate-spin" : ""
+                            isUpdating ? "animate-spin" : ""
                           }`}
                         />
                         <span>Regenerate</span>

@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useMutation } from "@tanstack/react-query";
+import { useCreateChatMutation } from "../app/services/api";
 import { Send, Loader2, Bot, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { chatAPI } from "../services/api";
 import { chatSchema } from "../utils/validationSchemas";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
@@ -20,25 +19,9 @@ const Chat = () => {
     resolver: yupResolver(chatSchema),
   });
 
-  const mutation = useMutation({
-    mutationFn: chatAPI.create,
-    onSuccess: (response) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          from: "bot",
-          text: response.data.response,
-          timestamp: format(new Date(), "hh:mm a"),
-        },
-      ]);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || "Failed to get response";
-      toast.error(message);
-    },
-  });
+  const [createChat, { isLoading: isSending }] = useCreateChatMutation();
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     const query = data.query.trim();
     if (!query) return;
 
@@ -47,13 +30,26 @@ const Chat = () => {
       { from: "user", text: query, timestamp: format(new Date(), "hh:mm a") },
     ]);
 
-    mutation.mutate({ query });
-    reset();
+    try {
+      const response = await createChat({ query }).unwrap();
+      setMessages((prev) => [
+        ...prev,
+        {
+          from: "bot",
+          text: response.response,
+          timestamp: format(new Date(), "hh:mm a"),
+        },
+      ]);
+      reset();
+    } catch (error) {
+      const message = error.data?.message || "Failed to get response";
+      toast.error(message);
+    }
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, mutation.isPending]);
+  }, [messages, isSending]);
 
   return (
     <div className="flex flex-col h-[85vh] md:h-[90vh] max-w-4xl mx-auto p-4 sm:p-6">
@@ -119,7 +115,7 @@ const Chat = () => {
               ))}
             </AnimatePresence>
 
-            {mutation.isPending && (
+            {isSending && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -150,10 +146,10 @@ const Chat = () => {
             <Button
               type="submit"
               size="icon"
-              disabled={mutation.isPending}
+              disabled={isSending}
               className="rounded-full bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:scale-105 transition-transform"
             >
-              {mutation.isPending ? (
+              {isSending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />

@@ -29,7 +29,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "../context/AuthContext";
+import { useSelector, useDispatch } from "react-redux";
+import { selectCurrentUser, logOut } from "@/app/slices/authSlice";
 import SidebarNav from "./SidebarNav";
 import CommandPalette from "./CommandPalette";
 
@@ -52,7 +53,8 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const user = useSelector(selectCurrentUser);
+  const dispatch = useDispatch();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -85,7 +87,7 @@ const Layout = ({ children }) => {
   ];
 
   const handleLogout = () => {
-    logout();
+    dispatch(logOut());
     navigate("/");
   };
 
@@ -104,7 +106,7 @@ const Layout = ({ children }) => {
         >
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
             <h1 className="text-xl font-bold text-gray-900 cursor-pointer dark:text-white">
-              {user.role === "superAdmin" ? (
+              {user?.role === "superAdmin" ? (
                 <Link
                   to="https://www.durgagairhe.com.np/"
                   target="_blank"

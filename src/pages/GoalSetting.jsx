@@ -1,6 +1,13 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { goalAPI } from "@/services/api";
+import {
+  useGetGoalsQuery,
+  useCreateGoalMutation,
+  useUpdateGoalMutation,
+  useDeleteGoalMutation,
+  useCreateKeyResultMutation,
+  useUpdateKeyResultMutation,
+  useDeleteKeyResultMutation,
+} from "@/app/services/api";
 import toast from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -19,7 +26,6 @@ import {
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const GoalSetting = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [newObjective, setNewObjective] = useState({
     title: "",
@@ -36,113 +42,101 @@ const GoalSetting = () => {
   const [isEditKeyResultOpen, setIsEditKeyResultOpen] = useState(false);
   const [editingKeyResult, setEditingKeyResult] = useState(null);
 
-  const { data: objectives = [], isLoading } = useQuery({
-    queryKey: ["goals"],
-    queryFn: async () => {
-      const response = await goalAPI.getAll();
-      return response.data;
-    },
-    onError: () => toast.error("Failed to load goals"),
-  });
+  const { data: objectives = [], isLoading } = useGetGoalsQuery();
 
-  const createObjective = useMutation({
-    mutationFn: goalAPI.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Objective created successfully");
-      setNewObjective({ title: "", description: "", targetDate: "" });
-      setIsAddObjectiveOpen(false);
-    },
-    onError: () => toast.error("Failed to create objective"),
-  });
+  const [createGoal, { isLoading: isCreatingGoal }] = useCreateGoalMutation();
+  const [updateGoal, { isLoading: isUpdatingGoal }] = useUpdateGoalMutation();
+  const [deleteGoal, { isLoading: isDeletingGoal }] = useDeleteGoalMutation();
 
-  const updateObjective = useMutation({
-    mutationFn: ({ id, data }) => goalAPI.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Objective updated successfully");
-      setIsEditObjectiveOpen(false);
-      setEditingObjective(null);
-    },
-    onError: () => toast.error("Failed to update objective"),
-  });
+  const [createKeyResult, { isLoading: isCreatingKeyResult }] = useCreateKeyResultMutation();
+  const [updateKeyResult, { isLoading: isUpdatingKeyResult }] = useUpdateKeyResultMutation();
+  const [deleteKeyResult, { isLoading: isDeletingKeyResult }] = useDeleteKeyResultMutation();
 
-  const deleteObjective = useMutation({
-    mutationFn: goalAPI.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Objective deleted successfully");
-    },
-    onError: () => toast.error("Failed to delete objective"),
-  });
-
-  const createKeyResults = useMutation({
-    mutationFn: ({ goalId, data }) => goalAPI.createKeyResult(goalId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Key results created successfully");
-      setNewKeyResults([{ title: "", currentValue: 0, targetValue: 100 }]);
-      setSelectedObjective(null);
-    },
-    onError: () => toast.error("Failed to create key results"),
-  });
-
-  const updateKeyResult = useMutation({
-    mutationFn: ({ goalId, krId, data }) =>
-      goalAPI.updateKeyResult(goalId, krId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Key result updated successfully");
-      setIsEditKeyResultOpen(false);
-      setEditingKeyResult(null);
-    },
-    onError: () => toast.error("Failed to update key result"),
-  });
-
-  const deleteKeyResult = useMutation({
-    mutationFn: ({ goalId, krId }) => goalAPI.deleteKeyResult(goalId, krId),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["goals"]);
-      toast.success("Key result deleted successfully");
-    },
-    onError: () => toast.error("Failed to delete key result"),
-  });
-
-  const handleAddObjective = () => {
+  const handleAddObjective = async () => {
     if (newObjective.title) {
-      createObjective.mutate(newObjective);
+      try {
+        await createGoal(newObjective).unwrap();
+        toast.success("Objective created successfully");
+        setNewObjective({ title: "", description: "", targetDate: "" });
+        setIsAddObjectiveOpen(false);
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to create objective");
+      }
     }
   };
 
-  const handleAddKeyResults = (objectiveId) => {
+  const handleAddKeyResults = async (objectiveId) => {
     const validKeyResults = newKeyResults.filter(
       (kr) => kr.title.trim() !== ""
     );
     if (validKeyResults.length > 0) {
-      createKeyResults.mutate({ goalId: objectiveId, data: validKeyResults });
+      try {
+        await Promise.all(validKeyResults.map(kr => createKeyResult({ goalId: objectiveId, ...kr }).unwrap()));
+        toast.success("Key results created successfully");
+        setNewKeyResults([{ title: "", currentValue: 0, targetValue: 100 }]);
+        setSelectedObjective(null);
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to create key results");
+      }
     }
   };
 
-  const handleUpdateKeyResult = () => {
+  const handleUpdateKeyResult = async () => {
     if (editingKeyResult.title) {
-      updateKeyResult.mutate({
-        goalId: editingKeyResult.goalId,
-        krId: editingKeyResult.id,
-        data: editingKeyResult,
-      });
+      try {
+        await updateKeyResult({
+          goalId: editingKeyResult.goalId,
+          krId: editingKeyResult.id,
+          ...editingKeyResult,
+        }).unwrap();
+        toast.success("Key result updated successfully");
+        setIsEditKeyResultOpen(false);
+        setEditingKeyResult(null);
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to update key result");
+      }
     }
   };
 
-  const filteredObjectives = objectives.filter((obj) =>
-    obj.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ).reverse();
+  const handleDeleteObjective = async (id) => {
+    if (window.confirm("Are you sure you want to delete this objective?")) {
+      try {
+        await deleteGoal(id).unwrap();
+        toast.success("Objective deleted successfully");
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to delete objective");
+      }
+    }
+  };
 
-  const handleUpdateObjective = () => {
+  const handleDeleteKeyResult = async (goalId, krId) => {
+    if (window.confirm("Are you sure you want to delete this key result?")) {
+      try {
+        await deleteKeyResult({ goalId, krId }).unwrap();
+        toast.success("Key result deleted successfully");
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to delete key result");
+      }
+    }
+  };
+
+  const filteredObjectives = (objectives || []).filter((obj) =>
+    obj.title.toLowerCase().includes(searchTerm.toLowerCase())
+  ).slice().reverse();
+
+  const handleUpdateObjective = async () => {
     if (editingObjective.title) {
-      updateObjective.mutate({
-        id: editingObjective.id,
-        data: editingObjective,
-      });
+      try {
+        await updateGoal({
+          id: editingObjective.id,
+          ...editingObjective,
+        }).unwrap();
+        toast.success("Objective updated successfully");
+        setIsEditObjectiveOpen(false);
+        setEditingObjective(null);
+      } catch (error) {
+        toast.error(error.data?.message || "Failed to update objective");
+      }
     }
   };
 
@@ -228,9 +222,9 @@ const GoalSetting = () => {
               />
               <Button
                 onClick={handleAddObjective}
-                disabled={createObjective.isPending}
+                disabled={isCreatingGoal}
               >
-                {createObjective.isPending ? "Adding..." : "Add Objective"}
+                {isCreatingGoal ? "Adding..." : "Add Objective"}
               </Button>
             </div>
           </DialogContent>
@@ -268,7 +262,8 @@ const GoalSetting = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteObjective.mutate(obj.id)}
+                    onClick={() => handleDeleteObjective(obj.id)}
+                    disabled={isDeletingGoal}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -298,11 +293,12 @@ const GoalSetting = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() =>
-                          deleteKeyResult.mutate({
-                            goalId: obj.id,
-                            krId: kr.id,
-                          })
+                          handleDeleteKeyResult(
+                            obj.id,
+                            kr.id
+                          )
                         }
+                        disabled={isDeletingKeyResult}
                       >
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
@@ -395,10 +391,10 @@ const GoalSetting = () => {
                   <div className="flex justify-end">
                     <Button
                       onClick={() => handleAddKeyResults(obj.id)}
-                      disabled={createKeyResults.isPending}
+                      disabled={isCreatingKeyResult}
                       className="w-fit"
                     >
-                      {createKeyResults.isPending
+                      {isCreatingKeyResult
                         ? "Adding..."
                         : "Add Key Results"}
                     </Button>
@@ -450,9 +446,9 @@ const GoalSetting = () => {
               />
               <Button
                 onClick={handleUpdateObjective}
-                disabled={updateObjective.isPending}
+                disabled={isUpdatingGoal}
               >
-                {updateObjective.isPending ? "Saving..." : "Save Changes"}
+                {isUpdatingGoal ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )}
@@ -501,9 +497,9 @@ const GoalSetting = () => {
               />
               <Button
                 onClick={handleUpdateKeyResult}
-                disabled={updateKeyResult.isPending}
+                disabled={isUpdatingKeyResult}
               >
-                {updateKeyResult.isPending ? "Saving..." : "Save Changes"}
+                {isUpdatingKeyResult ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )}

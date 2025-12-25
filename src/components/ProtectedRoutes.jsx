@@ -1,12 +1,10 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useSelector } from "react-redux";
+import { selectCurrentUser, selectCurrentToken } from "@/app/slices/authSlice";
 import { rolePermissions } from "@/config/permissions";
-import  LoadingSpinner  from "./LoadingSpinner";
 
 const isAllowed = (pathname, role) => {
   if (!role) return false;
-
-  
 
   if (rolePermissions[role] === "all") {
     return true;
@@ -28,15 +26,12 @@ const isAllowed = (pathname, role) => {
 };
 
 export const ProtectedRoutes = ({ children }) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const user = useSelector(selectCurrentUser);
+  const token = useSelector(selectCurrentToken);
   const location = useLocation();
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   const userRole = user?.role;
