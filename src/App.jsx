@@ -22,8 +22,6 @@ import {
   Training,
   Blogs,
   Chat,
-  Skills,
-  QuickLinks,
   ChatUser,
   ChatHistory,
   Tasks,
@@ -35,15 +33,16 @@ import {
   ExpenseTracker,
   Library,
   Settings,
-  // PromptStorage,
   QRSystem,
   Users,
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import { CodeLogPage, PromptStoragePage, QuickLinksPage, NotesPage } from "./features";
+import { CodeLogPage, PromptStoragePage, QuickLinksPage, NotesPage,SkillsPage } from "./features";
 import { useNetworkStatus } from "./context/NetworkStatusContext";
 import OfflineScreen from "./components/OfflineScreen";
+import LoadingSpinner from "./components/LoadingSpinner";
+import { Suspense } from "react";
 
 function App() {
   const isOnline = useNetworkStatus();
@@ -56,6 +55,8 @@ function App() {
     <Router>
       <div className="min-h-screen bg-gray-50">
         <ErrorBoundary>
+           <Suspense fallback={<LoadingSpinner />}>
+         
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
@@ -74,7 +75,7 @@ function App() {
                       <Route path="/projects" element={<Projects />} />
                       <Route path="/blogs" element={<Blogs />} />
                       <Route path="/training" element={<Training />} />
-                      <Route path="/skills" element={<Skills />} />
+                      <Route path="/skills" element={<SkillsPage />} />
                       <Route path="/notes" element={<NotesPage />} />
                       <Route path="/quicklinks" element={<QuickLinksPage />} />
                       <Route path="/tasks" element={<Tasks />} />
@@ -134,6 +135,7 @@ function App() {
               }
             />
           </Routes>
+            </Suspense>
         </ErrorBoundary>
         <Toaster
           position="top-right"

@@ -24,70 +24,62 @@ export function NoteCard({ note, onEdit, onDelete, isDeleting }) {
     <>
       <Card
         className="
-        relative max-h-[400px] overflow-y-scroll rounded-xl border border-gray-200 dark:border-gray-700
-        bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800
-        shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1
-        before:absolute before:inset-0
-        before:bg-[repeating-linear-gradient(white,white_24px,#e5e7eb_25px)]
-        dark:before:bg-[repeating-linear-gradient(#1f2937,#1f2937_24px,#374151_25px)]
-        before:opacity-60 before:-z-0
-      "
+          relative max-h-[400px] overflow-hidden rounded-2xl border border-gray-200/80 dark:border-gray-800/80
+          bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm
+          shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-1
+        "
       >
-        {/* Red margin line (dark mode adjusted) */}
-        <div className="absolute top-0 left-0 h-full w-[6px] bg-gradient-to-b from-green-300 via-blue-300 to-green-300 dark:from-green-600 dark:via-blue-700 dark:to-green-600 z-10" />
+        {/* Card Header */}
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-gray-900 dark:text-gray-100 tracking-tight">
+              {note.title}
+            </CardTitle>
 
-        {/* Card Header (title + buttons) */}
-        <CardHeader className="relative flex flex-row items-center justify-between bg-transparent z-20 px-5 pt-2">
-          <CardTitle className="font-handwriting text-lg font-semibold text-gray-800 dark:text-gray-100 tracking-wide">
-            {note.title}
-          </CardTitle>
+            <div className="flex items-center space-x-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(note)}
+                className="h-8 w-8 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
 
-          <div className="flex space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(note)}
-              className="hover:bg-rose-100 dark:hover:bg-green-900/40 text-green-500 dark:text-green-400"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDeleteClick(note)}
+                className="h-8 w-8 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleDeleteClick(note)}
-              className="hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400"
-            >
-              <Trash className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copy(note.content)}
-              className="hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-500 dark:text-blue-400"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => copy(note.content)}
+                className="h-8 w-8 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
-        {/* Content */}
-        <CardContent className="relative px-6 pb-6 pt-2 z-20">
-          <p className="whitespace-pre-wrap leading-relaxed text-gray-700 dark:text-gray-200 font-medium">
+        {/* Content with subtle scrollbar */}
+        <CardContent className="overflow-y-auto max-h-[300px] pb-6">
+          <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed">
             {note.content}
           </p>
         </CardContent>
-
-        {/* Bottom paper shadow */}
-        <div className="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-gray-200 dark:from-gray-700 to-transparent opacity-70"></div>
       </Card>
 
       {noteToDelete && (
         <ConfirmAlertDialog
           open={!!noteToDelete}
           onCancel={() => setNoteToDelete(null)}
-          title={`Delete code log "${noteToDelete?.title}"?`}
+          title={`Delete note "${noteToDelete?.title}"?`}
           description="This action cannot be undone."
           onConfirm={confirmDelete}
           isLoading={isDeleting}
