@@ -146,10 +146,6 @@ export const chatSchema = yup.object({
   query: yup.string().required("Query is required"),
 });
 
-export const codeLogSchema = yup.object({
-  title: yup.string().required("Title is required"),
-  code: yup.string().required("Code is required"),
-});
 
 export const taskSchema = yup.object({
   title: yup.string().required("Title is required"),
@@ -159,8 +155,4 @@ export const taskSchema = yup.object({
   dueDate: yup.date().optional(),
 });
 
-export const promptStorageSchema = yup.object({
-  title: yup.string().required("Title is required"),
-  ai_category: yup.string().required("AI Category is required"),
-  prompt: yup.string().required("Prompt is required"),
-});
+

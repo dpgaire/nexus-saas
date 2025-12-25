@@ -33,7 +33,6 @@ import {
   ExpenseTracker,
   Settings,
   QRSystem,
-  Users,
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
@@ -44,6 +43,7 @@ import {
   NotesPage,
   SkillsPage,
   LibraryPage,
+  UsersPage
 } from "./features";
 import { useNetworkStatus } from "./context/NetworkStatusContext";
 import OfflineScreen from "./components/OfflineScreen";
@@ -124,7 +124,7 @@ function App() {
                         <Route path="/qr-system" element={<QRSystem />} />
 
                         {/* Admin Only */}
-                        <Route path="/users" element={<Users />} />
+                        <Route path="/users" element={<UsersPage />} />
 
                         {/* Root Redirect */}
                         <Route

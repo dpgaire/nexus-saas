@@ -19,7 +19,6 @@ import GoalSetting from "./GoalSetting";
 import ExpenseTracker from "./ExpenseTracker";
 import Settings from "./Settings";
 import QRSystem from "./QRSystem";
-import Users from "./Users";
 import Landing from "./Landing";
 
 export {
@@ -44,6 +43,5 @@ export {
   ExpenseTracker,
   Settings,
   QRSystem,
-  Users,
   Landing,
 };

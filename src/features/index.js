@@ -4,6 +4,7 @@ import QuickLinksPage from "./quick-links/pages/QuickLinksPage";
 import NotesPage from "./notes/pages/NotesPage";
 import SkillsPage from "./skills/pages/SkillsPage";
 import LibraryPage from "./library/pages/LibraryPage";
+import UsersPage from "./users/pages/UsersPage";
 
 export {
   CodeLogPage,
@@ -12,4 +13,5 @@ export {
   NotesPage,
   SkillsPage,
   LibraryPage,
+  UsersPage,
 };
