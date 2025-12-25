@@ -31,14 +31,20 @@ import {
   PomodoroTimer,
   GoalSetting,
   ExpenseTracker,
-  Library,
   Settings,
   QRSystem,
   Users,
   Landing,
 } from "./pages";
 import { ProtectedRoutes } from "./components/ProtectedRoutes";
-import { CodeLogPage, PromptStoragePage, QuickLinksPage, NotesPage,SkillsPage } from "./features";
+import {
+  CodeLogPage,
+  PromptStoragePage,
+  QuickLinksPage,
+  NotesPage,
+  SkillsPage,
+  LibraryPage,
+} from "./features";
 import { useNetworkStatus } from "./context/NetworkStatusContext";
 import OfflineScreen from "./components/OfflineScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
@@ -55,87 +61,89 @@ function App() {
     <Router>
       <div className="min-h-screen bg-gray-50">
         <ErrorBoundary>
-           <Suspense fallback={<LoadingSpinner />}>
-         
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoutes>
-                  <Layout>
-                    <Routes>
-                      {/* Dashboard & Core */}
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/about" element={<About />} />
-                      <Route path="/contact" element={<Contacts />} />
-                      <Route path="/projects" element={<Projects />} />
-                      <Route path="/blogs" element={<Blogs />} />
-                      <Route path="/training" element={<Training />} />
-                      <Route path="/skills" element={<SkillsPage />} />
-                      <Route path="/notes" element={<NotesPage />} />
-                      <Route path="/quicklinks" element={<QuickLinksPage />} />
-                      <Route path="/tasks" element={<Tasks />} />
-                      <Route path="/library" element={<Library />} />
-                      <Route path="/settings" element={<Settings />} />
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoutes>
+                    <Layout>
+                      <Routes>
+                        {/* Dashboard & Core */}
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/about" element={<About />} />
+                        <Route path="/contact" element={<Contacts />} />
+                        <Route path="/projects" element={<Projects />} />
+                        <Route path="/blogs" element={<Blogs />} />
+                        <Route path="/training" element={<Training />} />
+                        <Route path="/skills" element={<SkillsPage />} />
+                        <Route path="/notes" element={<NotesPage />} />
+                        <Route
+                          path="/quicklinks"
+                          element={<QuickLinksPage />}
+                        />
+                        <Route path="/tasks" element={<Tasks />} />
+                        <Route path="/library" element={<LibraryPage />} />
+                        <Route path="/settings" element={<Settings />} />
 
-                      {/* Chat */}
-                      <Route path="/chat" element={<Chat />} />
-                      <Route path="/chat-user" element={<ChatUser />} />
-                      <Route path="/chat-history" element={<ChatHistory />} />
+                        {/* Chat */}
+                        <Route path="/chat" element={<Chat />} />
+                        <Route path="/chat-user" element={<ChatUser />} />
+                        <Route path="/chat-history" element={<ChatHistory />} />
 
-                      {/* Productivity */}
-                      <Route
-                        path="/pomodoro-timer"
-                        element={<PomodoroTimer />}
-                      />
-                      <Route path="/goal-setting" element={<GoalSetting />} />
-                      <Route
-                        path="/expense-tracker"
-                        element={<ExpenseTracker />}
-                      />
+                        {/* Productivity */}
+                        <Route
+                          path="/pomodoro-timer"
+                          element={<PomodoroTimer />}
+                        />
+                        <Route path="/goal-setting" element={<GoalSetting />} />
+                        <Route
+                          path="/expense-tracker"
+                          element={<ExpenseTracker />}
+                        />
 
-                      {/* Dev Tools */}
-                      <Route path="/code-log" element={<CodeLogPage />} />
-                      <Route
-                        path="/prompt-storage"
-                        element={<PromptStoragePage />}
-                      />
-                      <Route path="/md-to-pdf" element={<MarkdownEditor />} />
-                      <Route
-                        path="/rich-text-editor"
-                        element={<RichTextEditor />}
-                      />
-                      <Route
-                        path="/json-formatter"
-                        element={<JsonFormatter />}
-                      />
-                      <Route path="/qr-system" element={<QRSystem />} />
+                        {/* Dev Tools */}
+                        <Route path="/code-log" element={<CodeLogPage />} />
+                        <Route
+                          path="/prompt-storage"
+                          element={<PromptStoragePage />}
+                        />
+                        <Route path="/md-to-pdf" element={<MarkdownEditor />} />
+                        <Route
+                          path="/rich-text-editor"
+                          element={<RichTextEditor />}
+                        />
+                        <Route
+                          path="/json-formatter"
+                          element={<JsonFormatter />}
+                        />
+                        <Route path="/qr-system" element={<QRSystem />} />
 
-                      {/* Admin Only */}
-                      <Route path="/users" element={<Users />} />
+                        {/* Admin Only */}
+                        <Route path="/users" element={<Users />} />
 
-                      {/* Root Redirect */}
-                      <Route
-                        path="/"
-                        element={<Navigate to="/dashboard" replace />}
-                      />
+                        {/* Root Redirect */}
+                        <Route
+                          path="/"
+                          element={<Navigate to="/dashboard" replace />}
+                        />
 
-                      {/* 404 → Dashboard */}
-                      <Route
-                        path="*"
-                        element={<Navigate to="/dashboard" replace />}
-                      />
-                    </Routes>
-                  </Layout>
-                </ProtectedRoutes>
-              }
-            />
-          </Routes>
-            </Suspense>
+                        {/* 404 → Dashboard */}
+                        <Route
+                          path="*"
+                          element={<Navigate to="/dashboard" replace />}
+                        />
+                      </Routes>
+                    </Layout>
+                  </ProtectedRoutes>
+                }
+              />
+            </Routes>
+          </Suspense>
         </ErrorBoundary>
         <Toaster
           position="top-right"

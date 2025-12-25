@@ -159,14 +159,6 @@ export const taskSchema = yup.object({
   dueDate: yup.date().optional(),
 });
 
-export const librarySchema = yup.object({
-  title: yup.string().required("Title is required"),
-  description: yup.string().optional(),
-  url: yup.string().url("Must be a valid URL").required("PDF URL is required"),
-  author: yup.string().optional(),
-  coverImage: yup.string().url("Must be a valid URL").optional(),
-});
-
 export const promptStorageSchema = yup.object({
   title: yup.string().required("Title is required"),
   ai_category: yup.string().required("AI Category is required"),

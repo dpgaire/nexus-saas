@@ -17,7 +17,6 @@ import JsonFormatter from "./JsonFormatter";
 import PomodoroTimer from "./PomodoroTimer";
 import GoalSetting from "./GoalSetting";
 import ExpenseTracker from "./ExpenseTracker";
-import Library from "./Library";
 import Settings from "./Settings";
 import QRSystem from "./QRSystem";
 import Users from "./Users";
@@ -43,7 +42,6 @@ export {
   PomodoroTimer,
   GoalSetting,
   ExpenseTracker,
-  Library,
   Settings,
   QRSystem,
   Users,
